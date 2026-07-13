@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Shield, LayoutDashboard, Server, KeyRound, FileText,
   Network, CreditCard, Settings, ChevronLeft, ChevronRight,
-  Search, Bell, User, LogOut, ChevronDown, X,
+  Search, Bell, User, LogOut, ChevronDown, X, Menu
 } from 'lucide-react'
 import type { View } from '../App'
 
@@ -30,6 +30,8 @@ interface Props {
 
 export default function Layout({ currentView, navigate, children }: Props) {
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
   const [searchOpen, setSearchOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [userOpen, setUserOpen] = useState(false)
@@ -40,9 +42,29 @@ export default function Layout({ currentView, navigate, children }: Props) {
   return (
     <div className="flex h-screen bg-navy-950 overflow-hidden font-sans">
       {/* Sidebar */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       <aside
-        className="flex flex-col flex-shrink-0 border-r border-edge-subtle bg-navy-900 transition-all duration-200 overflow-hidden"
-        style={{ width: sidebarW }}
+        className={`
+          fixed lg:static
+          inset-y-0 left-0
+          z-50
+          flex flex-col
+          flex-shrink-0
+          border-r border-edge-subtle
+          bg-navy-900
+          transition-transform duration-200
+
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+        style={{
+          width: sidebarW
+        }}
       >
         {/* Logo */}
         <div className={`h-14 flex items-center border-b border-edge-subtle flex-shrink-0 ${collapsed ? 'justify-center px-0' : 'px-4'}`}>
@@ -61,7 +83,10 @@ export default function Layout({ currentView, navigate, children }: Props) {
             return (
               <button
                 key={item.id}
-                onClick={() => navigate(item.id)}
+                onClick={() => {
+                  navigate(item.id)
+                  setMobileOpen(false)
+                }}
                 title={collapsed ? item.label : undefined}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-md text-sm transition-all duration-100 text-left group
                   ${active
@@ -90,7 +115,10 @@ export default function Layout({ currentView, navigate, children }: Props) {
           <div className="my-2 mx-3 border-t border-edge-subtle" />
 
           <button
-            onClick={() => navigate('settings')}
+            onClick={() => {
+                  navigate('settings')
+                  setMobileOpen(false)
+                }}
             title={collapsed ? 'Settings' : undefined}
             className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-md text-sm transition-all text-left text-ink-secondary hover:text-ink-primary hover:bg-navy-700
               ${currentView === 'settings' ? 'bg-blue-500/10 text-blue-300' : ''}`}
@@ -138,13 +166,26 @@ export default function Layout({ currentView, navigate, children }: Props) {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
         <header className="h-14 border-b border-edge-subtle bg-navy-900 flex items-center px-4 gap-3 flex-shrink-0">
+          <button
+            className="lg:hidden w-8 h-8 flex items-center justify-center text-ink-secondary"
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu size={18}/>
+          </button>
+
           {/* Search */}
           <button
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-2 flex-1 max-w-xs px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default hover:border-edge-strong text-ink-muted text-sm transition-colors"
           >
             <Search size={13} />
-            <span className="text-xs">Search assets, docs, passwords…</span>
+            <span className="hidden sm:block text-xs">
+              Search assets, docs, passwords…
+            </span>
+
+            <span className="sm:hidden">
+              Search
+            </span>
             <span className="ml-auto text-[10px] font-mono bg-navy-600 text-ink-muted px-1.5 py-0.5 rounded border border-edge-default">⌘K</span>
           </button>
 
@@ -191,7 +232,7 @@ export default function Layout({ currentView, navigate, children }: Props) {
               className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-navy-700 transition-colors"
             >
               <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-semibold text-white">JD</div>
-              {!collapsed && <ChevronDown size={12} className="text-ink-muted" />}
+              <ChevronDown className="hidden sm:block text-ink-muted"/>
             </button>
             {userOpen && (
               <div className="absolute right-0 top-10 w-52 bg-navy-750 border border-edge-default rounded-xl shadow-2xl z-50 overflow-hidden">
@@ -211,15 +252,15 @@ export default function Layout({ currentView, navigate, children }: Props) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto bg-navy-950">
+        <main className="flex-1 overflow-y-auto bg-navy-950 p-3 md:p-0">
           {children}
         </main>
       </div>
 
       {/* Search overlay */}
       {searchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/60 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
-          <div className="w-full max-w-xl mx-4 bg-navy-800 border border-edge-strong rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center md:pt-24 bg-black/60 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
+          <div className="w-full max-w-xl md:mx-4 bg-navy-800 border border-edge-strong rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-4 py-3 border-b border-edge-subtle">
               <Search size={16} className="text-ink-muted flex-shrink-0" />
               <input

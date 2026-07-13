@@ -35,6 +35,50 @@ export interface PasswordEntry {
   notes: string
 }
 
+export type IPStatus = 'used' | 'free' | 'reserved'
+
+export interface IPEntry {
+  id: string
+  address: string
+  status: IPStatus
+  /** Linked Asset this IP is assigned to. Takes precedence over the free-text device field. */
+  assetId?: string
+  /** Free-text device/description when not linked to an Asset (e.g. a printer or third-party box). */
+  device?: string
+  notes: string
+}
+
+export interface Subnet {
+  id: string
+  name: string
+  cidr: string
+  vlan?: string
+  gateway?: string
+  description: string
+  ips: IPEntry[]
+}
+
+export type LicenseCategory = 'Domain' | 'Office / M365' | 'Program' | 'Antivirus' | 'Other'
+
+export interface License {
+  id: string
+  name: string
+  category: LicenseCategory
+  vendor: string
+  seats?: number
+  licenseKey?: string
+  purchaseDate: string
+  /** ISO date, or '' for a license that never expires (perpetual / lifetime). */
+  expiryDate: string
+  autoRenew: boolean
+  assignedTo: string
+  cost?: number
+  tags: string[]
+  starred: boolean
+  notes: string
+  updated: string
+}
+
 export interface Toast {
   id: string
   message: string
@@ -66,9 +110,70 @@ const INITIAL_PASSWORDS: PasswordEntry[] = [
   { id: '7', name: 'VMware vCenter', username: 'administrator@vsphere.local', password: 'vSph3re!Admin25', category: 'Hypervisor', tags: ['vmware', 'vcenter'], updated: '2026-06-15', strength: 'strong', starred: false, notes: 'vCenter SSO admin.' },
 ]
 
+function buildIps(prefix: string, entries: Array<Partial<IPEntry> & { last: number }>): IPEntry[] {
+  return entries.map(e => ({
+    id: `${prefix}-${e.last}`,
+    address: `${prefix}.${e.last}`,
+    status: e.status ?? 'used',
+    assetId: e.assetId,
+    device: e.device,
+    notes: e.notes ?? '',
+  }))
+}
+
+const INITIAL_SUBNETS: Subnet[] = [
+  {
+    id: 'sub-1', name: 'Datacenter Core', cidr: '10.0.0.0/24', vlan: '10', gateway: '10.0.0.1',
+    description: 'Firewalls, core switching and the hypervisor management network.',
+    ips: buildIps('10.0.0', [
+      { last: 1, status: 'used', assetId: '6', notes: 'Perimeter firewall mgmt' },
+      { last: 2, status: 'used', assetId: '7', notes: 'Core switch mgmt' },
+      { last: 3, status: 'reserved', device: 'Reserved for SW-CORE-02', notes: 'Held for planned redundant switch' },
+      { last: 4, status: 'free', notes: '' },
+      { last: 5, status: 'free', notes: '' },
+    ]),
+  },
+  {
+    id: 'sub-2', name: 'Production Servers', cidr: '10.0.1.0/24', vlan: '20', gateway: '10.0.1.1',
+    description: 'Primary production hypervisors and VM hosts.',
+    ips: buildIps('10.0.1', [
+      { last: 10, status: 'used', assetId: '1', notes: '' },
+      { last: 11, status: 'used', assetId: '2', notes: '' },
+      { last: 20, status: 'used', assetId: '10', notes: 'Being decommissioned, IP not yet reclaimed' },
+      { last: 12, status: 'free', notes: '' },
+      { last: 13, status: 'free', notes: '' },
+    ]),
+  },
+  {
+    id: 'sub-3', name: 'Office LAN', cidr: '10.1.0.0/24', vlan: '30', gateway: '10.1.0.1',
+    description: 'Workstations and printers across both office floors.',
+    ips: buildIps('10.1.0', [
+      { last: 50, status: 'used', assetId: '4', notes: '' },
+      { last: 91, status: 'used', assetId: '5', notes: '' },
+      { last: 100, status: 'reserved', device: 'DHCP pool start', notes: 'Everything from .100 up is DHCP-assigned' },
+      { last: 51, status: 'free', notes: '' },
+    ]),
+  },
+]
+
+const INITIAL_LICENSES: License[] = [
+  { id: 'lic-1', name: 'Windows Server 2025 Datacenter', category: 'Program', vendor: 'Microsoft', seats: 2, licenseKey: 'XXXXX-XXXXX-XXXXX-XXXXX-XXXXX', purchaseDate: '2025-01-15', expiryDate: '', autoRenew: false, assignedTo: 'SRV-PROD-01, SRV-PROD-02', cost: 6199, tags: ['microsoft', 'server'], starred: true, notes: 'Perpetual license, covers both hypervisor hosts.', updated: '2025-01-15' },
+  { id: 'lic-2', name: 'Microsoft 365 Business Premium', category: 'Office / M365', vendor: 'Microsoft', seats: 25, licenseKey: '', purchaseDate: '2025-08-01', expiryDate: '2026-08-01', autoRenew: true, assignedTo: 'All staff', cost: 5700, tags: ['microsoft', 'ms365', 'email'], starred: true, notes: 'Annual subscription, auto-renews via CSP partner.', updated: '2026-01-05' },
+  { id: 'lic-3', name: 'corp-company.com', category: 'Domain', vendor: 'Cloudflare Registrar', seats: undefined, licenseKey: '', purchaseDate: '2019-03-12', expiryDate: '2027-03-12', autoRenew: true, assignedTo: 'IT', cost: 12, tags: ['domain', 'dns'], starred: false, notes: 'Primary company domain. DNS also hosted on Cloudflare.', updated: '2026-03-12' },
+  { id: 'lic-4', name: 'ESET PROTECT Entry', category: 'Antivirus', vendor: 'ESET', seats: 40, licenseKey: 'ESET-XXXX-XXXX-XXXX', purchaseDate: '2025-07-20', expiryDate: '2026-07-20', autoRenew: false, assignedTo: 'All endpoints', cost: 1240, tags: ['eset', 'endpoint-security'], starred: true, notes: 'Renewal quote requested from vendor.', updated: '2025-07-20' },
+  { id: 'lic-5', name: 'Adobe Creative Cloud', category: 'Program', vendor: 'Adobe', seats: 3, licenseKey: '', purchaseDate: '2025-09-10', expiryDate: '2026-09-10', autoRenew: true, assignedTo: 'Marketing team', cost: 1890, tags: ['adobe', 'design'], starred: false, notes: '', updated: '2025-09-10' },
+  { id: 'lic-6', name: 'corp-company.net', category: 'Domain', vendor: 'Cloudflare Registrar', seats: undefined, licenseKey: '', purchaseDate: '2020-06-01', expiryDate: '2026-08-05', autoRenew: false, assignedTo: 'IT', cost: 14, tags: ['domain', 'defensive-registration'], starred: false, notes: 'Defensive registration, not in active use.', updated: '2025-08-05' },
+]
+
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
-interface State { assets: Asset[]; passwords: PasswordEntry[]; toasts: Toast[] }
+interface State {
+  assets: Asset[]
+  passwords: PasswordEntry[]
+  subnets: Subnet[]
+  licenses: License[]
+  toasts: Toast[]
+}
 
 type Action =
   | { type: 'ADD_ASSET'; asset: Asset }
@@ -79,6 +184,16 @@ type Action =
   | { type: 'UPDATE_PASSWORD'; password: PasswordEntry }
   | { type: 'DELETE_PASSWORD'; id: string }
   | { type: 'TOGGLE_STAR_PASSWORD'; id: string }
+  | { type: 'ADD_SUBNET'; subnet: Subnet }
+  | { type: 'UPDATE_SUBNET'; subnet: Subnet }
+  | { type: 'DELETE_SUBNET'; id: string }
+  | { type: 'ADD_IP'; subnetId: string; ip: IPEntry }
+  | { type: 'UPDATE_IP'; subnetId: string; ip: IPEntry }
+  | { type: 'DELETE_IP'; subnetId: string; ipId: string }
+  | { type: 'ADD_LICENSE'; license: License }
+  | { type: 'UPDATE_LICENSE'; license: License }
+  | { type: 'DELETE_LICENSE'; id: string }
+  | { type: 'TOGGLE_STAR_LICENSE'; id: string }
   | { type: 'ADD_TOAST'; toast: Toast }
   | { type: 'REMOVE_TOAST'; id: string }
 
@@ -92,6 +207,7 @@ function reducer(state: State, action: Action): State {
       return { ...state, assets: state.assets.filter(a => a.id !== action.id) }
     case 'TOGGLE_STAR_ASSET':
       return { ...state, assets: state.assets.map(a => a.id === action.id ? { ...a, starred: !a.starred } : a) }
+
     case 'ADD_PASSWORD':
       return { ...state, passwords: [action.password, ...state.passwords] }
     case 'UPDATE_PASSWORD':
@@ -100,6 +216,29 @@ function reducer(state: State, action: Action): State {
       return { ...state, passwords: state.passwords.filter(p => p.id !== action.id) }
     case 'TOGGLE_STAR_PASSWORD':
       return { ...state, passwords: state.passwords.map(p => p.id === action.id ? { ...p, starred: !p.starred } : p) }
+
+    case 'ADD_SUBNET':
+      return { ...state, subnets: [action.subnet, ...state.subnets] }
+    case 'UPDATE_SUBNET':
+      return { ...state, subnets: state.subnets.map(s => s.id === action.subnet.id ? { ...action.subnet, ips: s.ips } : s) }
+    case 'DELETE_SUBNET':
+      return { ...state, subnets: state.subnets.filter(s => s.id !== action.id) }
+    case 'ADD_IP':
+      return { ...state, subnets: state.subnets.map(s => s.id === action.subnetId ? { ...s, ips: [...s.ips, action.ip] } : s) }
+    case 'UPDATE_IP':
+      return { ...state, subnets: state.subnets.map(s => s.id === action.subnetId ? { ...s, ips: s.ips.map(ip => ip.id === action.ip.id ? action.ip : ip) } : s) }
+    case 'DELETE_IP':
+      return { ...state, subnets: state.subnets.map(s => s.id === action.subnetId ? { ...s, ips: s.ips.filter(ip => ip.id !== action.ipId) } : s) }
+
+    case 'ADD_LICENSE':
+      return { ...state, licenses: [action.license, ...state.licenses] }
+    case 'UPDATE_LICENSE':
+      return { ...state, licenses: state.licenses.map(l => l.id === action.license.id ? action.license : l) }
+    case 'DELETE_LICENSE':
+      return { ...state, licenses: state.licenses.filter(l => l.id !== action.id) }
+    case 'TOGGLE_STAR_LICENSE':
+      return { ...state, licenses: state.licenses.map(l => l.id === action.id ? { ...l, starred: !l.starred } : l) }
+
     case 'ADD_TOAST':
       return { ...state, toasts: [...state.toasts, action.toast] }
     case 'REMOVE_TOAST':
@@ -114,17 +253,33 @@ function reducer(state: State, action: Action): State {
 export interface AppContextValue {
   assets: Asset[]
   passwords: PasswordEntry[]
+  subnets: Subnet[]
+  licenses: License[]
   toasts: Toast[]
   dismissToast: (id: string) => void
+  toast: (message: string, type?: Toast['type']) => void
+
   addAsset: (a: Omit<Asset, 'id' | 'updated'>) => void
   updateAsset: (a: Asset) => void
   deleteAsset: (id: string) => void
   toggleStarAsset: (id: string) => void
+
   addPassword: (p: Omit<PasswordEntry, 'id' | 'updated' | 'strength'>) => void
   updatePassword: (p: PasswordEntry) => void
   deletePassword: (id: string) => void
   toggleStarPassword: (id: string) => void
-  toast: (message: string, type?: Toast['type']) => void
+
+  addSubnet: (s: Omit<Subnet, 'id' | 'ips'>) => void
+  updateSubnet: (s: Omit<Subnet, 'ips'>) => void
+  deleteSubnet: (id: string) => void
+  addIP: (subnetId: string, ip: Omit<IPEntry, 'id'>) => void
+  updateIP: (subnetId: string, ip: IPEntry) => void
+  deleteIP: (subnetId: string, ipId: string) => void
+
+  addLicense: (l: Omit<License, 'id' | 'updated'>) => void
+  updateLicense: (l: License) => void
+  deleteLicense: (id: string) => void
+  toggleStarLicense: (id: string) => void
 }
 
 function calcStrength(pw: string): PasswordStrength {
@@ -137,6 +292,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
     assets: INITIAL_ASSETS,
     passwords: INITIAL_PASSWORDS,
+    subnets: INITIAL_SUBNETS,
+    licenses: INITIAL_LICENSES,
     toasts: [],
   })
 
@@ -151,6 +308,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => dispatch({ type: 'REMOVE_TOAST', id }), 3200)
   }, [])
 
+  // ── Assets ──
   const addAsset = useCallback((a: Omit<Asset, 'id' | 'updated'>) => {
     dispatch({ type: 'ADD_ASSET', asset: { ...a, id: crypto.randomUUID(), updated: 'just now' } })
     toast(`Asset "${a.name}" created`)
@@ -171,6 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'TOGGLE_STAR_ASSET', id })
   }, [])
 
+  // ── Passwords ──
   const addPassword = useCallback((p: Omit<PasswordEntry, 'id' | 'updated' | 'strength'>) => {
     dispatch({ type: 'ADD_PASSWORD', password: { ...p, id: crypto.randomUUID(), updated: new Date().toISOString().slice(0, 10), strength: calcStrength(p.password) } })
     toast(`Password "${p.name}" saved`)
@@ -191,8 +350,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'TOGGLE_STAR_PASSWORD', id })
   }, [])
 
+  // ── Network (subnets + IPs) ──
+  const addSubnet = useCallback((s: Omit<Subnet, 'id' | 'ips'>) => {
+    dispatch({ type: 'ADD_SUBNET', subnet: { ...s, id: crypto.randomUUID(), ips: [] } })
+    toast(`Subnet "${s.name}" created`)
+  }, [toast])
+
+  const updateSubnet = useCallback((s: Omit<Subnet, 'ips'>) => {
+    dispatch({ type: 'UPDATE_SUBNET', subnet: { ...s, ips: [] } })
+    toast(`Subnet "${s.name}" updated`)
+  }, [toast])
+
+  const deleteSubnet = useCallback((id: string) => {
+    const name = state.subnets.find(s => s.id === id)?.name
+    dispatch({ type: 'DELETE_SUBNET', id })
+    toast(`Subnet "${name}" deleted`, 'info')
+  }, [state.subnets, toast])
+
+  const addIP = useCallback((subnetId: string, ip: Omit<IPEntry, 'id'>) => {
+    dispatch({ type: 'ADD_IP', subnetId, ip: { ...ip, id: crypto.randomUUID() } })
+    toast(`${ip.address} added`)
+  }, [toast])
+
+  const updateIP = useCallback((subnetId: string, ip: IPEntry) => {
+    dispatch({ type: 'UPDATE_IP', subnetId, ip })
+    toast(`${ip.address} updated`)
+  }, [toast])
+
+  const deleteIP = useCallback((subnetId: string, ipId: string) => {
+    dispatch({ type: 'DELETE_IP', subnetId, ipId })
+    toast('IP entry removed', 'info')
+  }, [toast])
+
+  // ── Licenses ──
+  const addLicense = useCallback((l: Omit<License, 'id' | 'updated'>) => {
+    dispatch({ type: 'ADD_LICENSE', license: { ...l, id: crypto.randomUUID(), updated: new Date().toISOString().slice(0, 10) } })
+    toast(`License "${l.name}" added`)
+  }, [toast])
+
+  const updateLicense = useCallback((l: License) => {
+    dispatch({ type: 'UPDATE_LICENSE', license: { ...l, updated: new Date().toISOString().slice(0, 10) } })
+    toast(`License "${l.name}" updated`)
+  }, [toast])
+
+  const deleteLicense = useCallback((id: string) => {
+    const name = state.licenses.find(l => l.id === id)?.name
+    dispatch({ type: 'DELETE_LICENSE', id })
+    toast(`License "${name}" deleted`, 'info')
+  }, [state.licenses, toast])
+
+  const toggleStarLicense = useCallback((id: string) => {
+    dispatch({ type: 'TOGGLE_STAR_LICENSE', id })
+  }, [])
+
   return (
-    <AppContext.Provider value={{ assets: state.assets, passwords: state.passwords, toasts: state.toasts, dismissToast, addAsset, updateAsset, deleteAsset, toggleStarAsset, addPassword, updatePassword, deletePassword, toggleStarPassword, toast }}>
+    <AppContext.Provider value={{
+      assets: state.assets, passwords: state.passwords, subnets: state.subnets, licenses: state.licenses, toasts: state.toasts,
+      dismissToast, toast,
+      addAsset, updateAsset, deleteAsset, toggleStarAsset,
+      addPassword, updatePassword, deletePassword, toggleStarPassword,
+      addSubnet, updateSubnet, deleteSubnet, addIP, updateIP, deleteIP,
+      addLicense, updateLicense, deleteLicense, toggleStarLicense,
+    }}>
       {children}
     </AppContext.Provider>
   )

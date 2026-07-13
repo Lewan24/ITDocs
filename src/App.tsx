@@ -8,6 +8,8 @@ import AssetDetails from './components/AssetDetails'
 import DocEditor from './components/DocEditor'
 import PasswordVault from './components/PasswordVault'
 import ToastContainer from './components/ui/Toast'
+import NetworkManager from './components/NetworkManager'
+import LicenseVault from './components/LicenseVault'
 
 export type View = 'dashboard' | 'assets' | 'asset-detail' | 'passwords' | 'docs' | 'doc-editor' | 'networks' | 'licenses' | 'settings'
 
@@ -29,6 +31,8 @@ function AppInner() {
       case 'assets': return <AssetInventory navigate={navigate} />
       case 'asset-detail': return <AssetDetails assetId={selectedAssetId} navigate={navigate} />
       case 'passwords': return <PasswordVault />
+      case 'networks': return <NetworkManager navigate={navigate}/>
+      case 'licenses': return <LicenseVault />
       case 'docs':
       case 'doc-editor': return <DocEditor />
       default: return (

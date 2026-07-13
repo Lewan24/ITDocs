@@ -5,11 +5,15 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import type { PasswordEntry } from '../context/AppContext'
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/Modal'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { Field, inputClass, StarToggle } from '../components/FormField'
+import { TagEditor } from '../components/TagEditor'
 
 const CATEGORIES = ['All', 'Cloud', 'Hypervisor', 'Network', 'Active Directory', 'Storage', 'Database', 'Application', 'Other']
 const CATEGORY_LIST = CATEGORIES.slice(1)
 
-const STRENGTH_STYLES = {
+export const STRENGTH_STYLES = {
   strong: 'text-green-400 bg-green-500/10 border-green-500/25',
   medium: 'text-orange-400 bg-orange-500/10 border-orange-500/25',
   weak: 'text-red-400 bg-red-500/10 border-red-500/25',
@@ -31,23 +35,17 @@ function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
     username: initial?.username ?? '',
     password: initial?.password ?? '',
     category: initial?.category ?? 'Other',
-    tags: initial?.tags ?? [],
+    tags: initial?.tags ?? [] as string[],
     starred: initial?.starred ?? false,
     notes: initial?.notes ?? '',
   })
   const [showPw, setShowPw] = useState(false)
-  const [tagInput, setTagInput] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const firstRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { firstRef.current?.focus() }, [])
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
-  }, [onClose])
 
   const set = (k: string, v: unknown) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
-  const addTag = () => { const t = tagInput.trim().toLowerCase(); if (t && !form.tags.includes(t)) set('tags', [...form.tags, t]); setTagInput('') }
 
   const validate = () => {
     const e: Record<string, string> = {}
@@ -61,108 +59,76 @@ function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
   const strength = form.password ? calcStrength(form.password) : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-edge-subtle">
-          <div>
-            <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Password' : 'Add Password Entry'}</h2>
-            <p className="text-[11px] text-ink-muted mt-0.5">{initial ? `Editing ${initial.name}` : 'Store a new credential securely'}</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={15} /></button>
-        </div>
+    <Modal onClose={onClose} maxWidth="max-w-md">
+      <ModalHeader
+        title={initial ? 'Edit Password' : 'Add Password Entry'}
+        subtitle={initial ? `Editing ${initial.name}` : 'Store a new credential securely'}
+        onClose={onClose}
+      />
 
-        <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
-          <div>
-            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Name *</label>
-            <input ref={firstRef} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. AWS Root Account"
-              className={inp(errors.name)} />
-            {errors.name && <p className="text-[10px] text-red-400 mt-1">{errors.name}</p>}
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Username *</label>
-            <input value={form.username} onChange={e => set('username', e.target.value)} placeholder="e.g. admin@corp.com"
-              className={inp(errors.username) + ' font-mono'} />
-            {errors.username && <p className="text-[10px] text-red-400 mt-1">{errors.username}</p>}
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-medium text-ink-secondary">Password *</label>
-              <button type="button" onClick={() => set('password', generatePassword())}
-                className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
-                <RefreshCw size={10} /> Generate
-              </button>
-            </div>
-            <div className="relative">
-              <input type={showPw ? 'text' : 'password'} value={form.password} onChange={e => set('password', e.target.value)}
-                placeholder="Enter or generate a password"
-                className={inp(errors.password) + ' font-mono pr-10'} />
-              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-secondary transition-colors">
-                {showPw ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
-            </div>
-            {form.password && strength && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex-1 h-1 rounded-full bg-navy-600 overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${STRENGTH_BAR[strength]}`} />
-                </div>
-                <span className={`text-[10px] font-mono ${strength === 'strong' ? 'text-green-400' : strength === 'medium' ? 'text-orange-400' : 'text-red-400'}`}>{strength}</span>
-              </div>
-            )}
-            {errors.password && <p className="text-[10px] text-red-400 mt-1">{errors.password}</p>}
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Category</label>
-            <div className="relative">
-              <select value={form.category} onChange={e => set('category', e.target.value)} className={inp() + ' appearance-none pr-8'}>
-                {CATEGORY_LIST.map(c => <option key={c}>{c}</option>)}
-              </select>
-              <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Tags</label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {form.tags.map(t => (
-                <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-navy-700 border border-edge-subtle text-[11px] text-ink-secondary font-mono">
-                  {t}<button type="button" onClick={() => set('tags', form.tags.filter(x => x !== t))} className="text-ink-muted hover:text-red-400 transition-colors ml-0.5">×</button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="Add tag…" className={inp() + ' flex-1'} />
-              <button type="button" onClick={addTag} className="px-3 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs hover:bg-navy-600 transition-colors"><Tag size={11} /></button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any notes…"
-              className={inp() + ' resize-none leading-relaxed'} />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/50">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <div onClick={() => set('starred', !form.starred)} className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-all ${form.starred ? 'bg-yellow-500/20 border-yellow-500/50' : 'border-edge-strong'}`}>
-              {form.starred && <Star size={10} className="text-yellow-400 fill-yellow-400" />}
-            </div>
-            <span className="text-xs text-ink-secondary">Add to favorites</span>
-          </label>
-          <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-            <button onClick={() => { if (validate()) onSave(form) }} className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
-              {initial ? 'Save Changes' : 'Save Entry'}
+      <ModalBody>
+        <Field label="Name *" error={errors.name}>
+          <input ref={firstRef} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. AWS Root Account"
+            className={inputClass(errors.name)} />
+        </Field>
+        <Field label="Username *" error={errors.username}>
+          <input value={form.username} onChange={e => set('username', e.target.value)} placeholder="e.g. admin@corp.com"
+            className={inputClass(errors.username) + ' font-mono'} />
+        </Field>
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-medium text-ink-secondary">Password *</label>
+            <button type="button" onClick={() => set('password', generatePassword())}
+              className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
+              <RefreshCw size={10} /> Generate
             </button>
           </div>
+          <div className="relative">
+            <input type={showPw ? 'text' : 'password'} value={form.password} onChange={e => set('password', e.target.value)}
+              placeholder="Enter or generate a password"
+              className={inputClass(errors.password) + ' font-mono pr-10'} />
+            <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-secondary transition-colors">
+              {showPw ? <EyeOff size={13} /> : <Eye size={13} />}
+            </button>
+          </div>
+          {form.password && strength && (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex-1 h-1 rounded-full bg-navy-600 overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-500 ${STRENGTH_BAR[strength]}`} />
+              </div>
+              <span className={`text-[10px] font-mono ${strength === 'strong' ? 'text-green-400' : strength === 'medium' ? 'text-orange-400' : 'text-red-400'}`}>{strength}</span>
+            </div>
+          )}
+          {errors.password && <p className="text-[10px] text-red-400 mt-1">{errors.password}</p>}
         </div>
-      </div>
-    </div>
-  )
-}
+        <Field label="Category">
+          <div className="relative">
+            <select value={form.category} onChange={e => set('category', e.target.value)} className={inputClass() + ' appearance-none pr-8'}>
+              {CATEGORY_LIST.map(c => <option key={c}>{c}</option>)}
+            </select>
+            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
+          </div>
+        </Field>
+        <Field label="Tags">
+          <TagEditor tags={form.tags} onChange={t => set('tags', t)} addLabel={<Tag size={11} />} />
+        </Field>
+        <Field label="Notes">
+          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any notes…"
+            className={inputClass() + ' resize-none leading-relaxed'} />
+        </Field>
+      </ModalBody>
 
-function inp(error?: string) {
-  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+      <ModalFooter>
+        <StarToggle checked={form.starred} onChange={() => set('starred', !form.starred)} />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
+          <button onClick={() => { if (validate()) onSave(form) }} className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
+            {initial ? 'Save Changes' : 'Save Entry'}
+          </button>
+        </div>
+      </ModalFooter>
+    </Modal>
+  )
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -194,8 +160,6 @@ export default function PasswordVault() {
 
   return (
     <div className="flex h-full">
-      <style>{`@keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(4px); } to { opacity:1; transform:scale(1) translateY(0); } }`}</style>
-
       {/* Sidebar list */}
       <div className="w-72 border-r border-edge-subtle bg-navy-900 flex flex-col flex-shrink-0">
         <div className="px-4 pt-4 pb-3 border-b border-edge-subtle flex-shrink-0">
@@ -371,19 +335,12 @@ export default function PasswordVault() {
       {editEntry && <PasswordForm initial={editEntry} onSave={d => { updatePassword({ ...editEntry, ...d }); setEditEntry(null) }} onClose={() => setEditEntry(null)} />}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative bg-navy-800 border border-red-500/30 rounded-2xl shadow-2xl w-full max-w-sm p-6" style={{ animation: 'modalIn 0.15s ease-out' }} onClick={e => e.stopPropagation()}>
-            <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto mb-4"><Trash2 size={18} className="text-red-400" /></div>
-            <h3 className="text-sm font-semibold text-ink-primary text-center mb-1">Delete Password Entry</h3>
-            <p className="text-xs text-ink-muted text-center mb-5">Delete <span className="text-ink-primary font-mono">{deleteTarget.name}</span>? This cannot be undone.</p>
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-              <button onClick={() => { deletePassword(deleteTarget.id); setDeleteTarget(null); if (selectedId === deleteTarget.id) setSelectedId(passwords[0]?.id ?? '') }}
-                className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors">Delete</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete Password Entry"
+          message={<>Delete <span className="text-ink-primary font-mono">{deleteTarget.name}</span>? This cannot be undone.</>}
+          onConfirm={() => { deletePassword(deleteTarget.id); setDeleteTarget(null); if (selectedId === deleteTarget.id) setSelectedId(passwords[0]?.id ?? '') }}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   )
