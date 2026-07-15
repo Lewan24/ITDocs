@@ -1,276 +1,440 @@
 import { useState } from 'react'
 import {
-  Shield, LayoutDashboard, Server, KeyRound, FileText,
+  Shield, LayoutDashboard, Server, KeyRound, BookOpen,
   Network, CreditCard, Settings, ChevronLeft, ChevronRight,
-  Search, Bell, User, LogOut, ChevronDown, X, Menu
+  Search, Bell, LogOut, ChevronDown, X, Plus, Check, Building2, Menu,
+  Users, FileSignature, Lightbulb, AlertTriangle, CheckSquare,
+  ShieldCheck, Layers, Share2, Sun, Moon,
 } from 'lucide-react'
 import type { View } from '../App'
+import { useApp } from '../context/useApp'
+import type { Organization } from '../context/AppContext'
+import { toggleTheme, getTheme } from '../lib/theme'
 
-interface NavItem {
-  id: View
-  label: string
-  icon: React.ReactNode
-  badge?: number
-}
+type NavSection = { label: string; items: { id: View; label: string; icon: React.ReactNode }[] }
 
-const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
-  { id: 'assets', label: 'Assets', icon: <Server size={16} />, badge: 3 },
-  { id: 'passwords', label: 'Passwords', icon: <KeyRound size={16} /> },
-  { id: 'docs', label: 'Documentation', icon: <FileText size={16} /> },
-  { id: 'networks', label: 'Networks', icon: <Network size={16} /> },
-  { id: 'licenses', label: 'Licenses', icon: <CreditCard size={16} />, badge: 2 },
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Infrastructure',
+    items: [
+      { id: 'dashboard', label: 'Dashboard',  icon: <LayoutDashboard size={15} /> },
+      { id: 'assets',    label: 'Assets',     icon: <Server size={15} /> },
+      { id: 'networks',  label: 'Networks',   icon: <Network size={15} /> },
+      { id: 'licenses',  label: 'Licenses',   icon: <CreditCard size={15} /> },
+    ],
+  },
+  {
+    label: 'Security',
+    items: [
+      { id: 'passwords', label: 'Passwords', icon: <KeyRound size={15} /> },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { id: 'tasks',     label: 'Tasks',      icon: <CheckSquare size={15} /> },
+      { id: 'plans',     label: 'Plans',      icon: <Lightbulb size={15} /> },
+      { id: 'incidents', label: 'Incidents',  icon: <AlertTriangle size={15} /> },
+      { id: 'contracts', label: 'Contracts',  icon: <FileSignature size={15} /> },
+    ],
+  },
+  {
+    label: 'Assets & Infra',
+    items: [
+      { id: 'warranty', label: 'Warranty',    icon: <ShieldCheck size={15} /> },
+      { id: 'groups',   label: 'Groups',      icon: <Layers size={15} /> },
+      { id: 'diagram',  label: 'Diagram',     icon: <Share2 size={15} /> },
+    ],
+  },
+  {
+    label: 'Knowledge',
+    items: [
+      { id: 'knowledge', label: 'Knowledge Base', icon: <BookOpen size={15} /> },
+      { id: 'contacts',  label: 'Contacts',       icon: <Users size={15} /> },
+    ],
+  },
 ]
 
 interface Props {
   currentView: View
   navigate: (v: View) => void
+  onLogout: () => void
   children: React.ReactNode
 }
 
-export default function Layout({ currentView, navigate, children }: Props) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+// ─── New Org Modal ────────────────────────────────────────────────────────────
 
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [notifOpen, setNotifOpen] = useState(false)
-  const [userOpen, setUserOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+function OrgModal({ onClose, onAdd }: { onClose: () => void; onAdd: (o: Omit<Organization, 'id'>) => void }) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [color, setColor] = useState('#2563eb')
+  const [error, setError] = useState('')
+  const COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706', '#0891b2', '#be185d', '#374151']
 
-  const sidebarW = collapsed ? 60 : 220
+  const submit = () => {
+    if (!name.trim()) { setError('Name is required'); return }
+    const initials = name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    onAdd({ name: name.trim(), description, color, initials })
+    onClose()
+  }
 
   return (
-    <div className="flex h-screen bg-navy-950 overflow-hidden font-sans">
-      {/* Sidebar */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle">
+          <h2 className="text-sm font-semibold text-ink-primary">New Organization</h2>
+          <button onClick={onClose} className="p-1 rounded-md text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Name *</label>
+            <input value={name} onChange={e => { setName(e.target.value); setError('') }} placeholder="e.g. Branch Office" autoFocus
+              className={`w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${error ? 'border-red-500/50' : 'border-edge-default focus:border-blue-500'}`} />
+            {error && <p className="text-[10px] text-red-400 mt-1">{error}</p>}
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
+            <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description"
+              className="w-full px-3 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none focus:border-blue-500 transition-colors" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-2">Color</label>
+            <div className="flex gap-2 flex-wrap">
+              {COLORS.map(c => (
+                <button key={c} onClick={() => setColor(c)} className="w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center"
+                  style={{ backgroundColor: c, borderColor: color === c ? '#fff' : 'transparent' }}>
+                  {color === c && <Check size={10} className="text-white" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-edge-subtle bg-navy-900/40">
+          <button onClick={onClose} className="px-3.5 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
+          <button onClick={submit} className="px-3.5 py-1.5 rounded-lg text-white text-xs font-medium transition-all active:scale-95" style={{ backgroundColor: color, boxShadow: `0 1px 10px ${color}55` }}>Create</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
+function Sidebar({
+  currentView, navigate, onLogout, collapsed, onToggleCollapse, isMobile, onClose,
+}: {
+  currentView: View
+  navigate: (v: View) => void
+  onLogout: () => void
+  collapsed: boolean
+  onToggleCollapse: () => void
+  isMobile: boolean
+  onClose?: () => void
+}) {
+  const { orgs, currentOrg, switchOrg, licenses, addOrg, toast } = useApp()
+  const [orgOpen, setOrgOpen] = useState(false)
+  const [orgModalOpen, setOrgModalOpen] = useState(false)
+
+  const expiring = licenses.filter(l => l.status === 'expiring' || l.status === 'expired').length
+
+  const handleNav = (v: View) => {
+    navigate(v)
+    onClose?.()
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-navy-900">
+      {/* Logo row */}
+      <div className={`h-14 flex items-center border-b border-edge-subtle flex-shrink-0 ${collapsed && !isMobile ? 'justify-center px-0' : 'px-4'}`}>
+        {isMobile && (
+          <button onClick={onClose} className="mr-3 p-1 rounded-md text-ink-muted hover:text-ink-primary transition-colors">
+            <X size={16} />
+          </button>
+        )}
+        <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0" style={{ boxShadow: '0 0 16px rgba(37,99,235,0.4)' }}>
+          <Shield size={14} className="text-white" />
+        </div>
+        {(!collapsed || isMobile) && (
+          <span className="ml-2.5 font-semibold text-ink-primary text-sm tracking-tight whitespace-nowrap">ITDocs</span>
+        )}
+      </div>
+
+      {/* Org switcher */}
+      {(!collapsed || isMobile) ? (
+        <div className="px-3 py-2.5 border-b border-edge-subtle flex-shrink-0">
+          <button
+            onClick={e => { e.stopPropagation(); setOrgOpen(v => !v) }}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-navy-700 transition-colors"
+          >
+            <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
+              style={{ backgroundColor: currentOrg.color }}>{currentOrg.initials}</div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-medium text-ink-primary truncate leading-tight">{currentOrg.name}</p>
+              <p className="text-[9px] text-ink-muted leading-tight">Organization</p>
+            </div>
+            <ChevronDown size={12} className={`text-ink-muted transition-transform flex-shrink-0 ${orgOpen ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex justify-center py-2.5 border-b border-edge-subtle flex-shrink-0">
+          <div className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold text-white cursor-pointer"
+            onClick={e => { e.stopPropagation(); setOrgOpen(v => !v) }}
+            style={{ backgroundColor: currentOrg.color }} title={currentOrg.name}>
+            {currentOrg.initials}
+          </div>
+        </div>
       )}
 
-      <aside
-        className={`
-          fixed lg:static
-          inset-y-0 left-0
-          z-50
-          flex flex-col
-          flex-shrink-0
-          border-r border-edge-subtle
-          bg-navy-900
-          transition-transform duration-200
-
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}
-        style={{
-          width: sidebarW
-        }}
-      >
-        {/* Logo */}
-        <div className={`h-14 flex items-center border-b border-edge-subtle flex-shrink-0 ${collapsed ? 'justify-center px-0' : 'px-4'}`}>
-          <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0" style={{ boxShadow: '0 0 16px rgba(37,99,235,0.4)' }}>
-            <Shield size={14} className="text-white" />
+      {/* Nav */}
+      <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden">
+        {NAV_SECTIONS.map((section, si) => (
+          <div key={section.label}>
+            {si > 0 && <div className="mx-3 my-1.5 border-t border-edge-subtle" />}
+            {(!collapsed || isMobile) && (
+              <p className="px-4 pt-1.5 pb-0.5 text-[9px] font-semibold text-ink-muted uppercase tracking-widest">{section.label}</p>
+            )}
+            {section.items.map(item => {
+              const active = currentView === item.id
+                || (currentView === 'asset-detail' && item.id === 'assets')
+              const badge = item.id === 'licenses' ? (expiring || undefined) : undefined
+              return (
+                <button key={item.id} onClick={() => handleNav(item.id)}
+                  title={collapsed && !isMobile ? item.label : undefined}
+                  className={`w-full flex items-center gap-2.5 px-3 py-1.5 mx-1.5 rounded-md text-sm transition-all text-left group
+                    ${active ? 'bg-blue-500/10 text-blue-300' : 'text-ink-secondary hover:text-ink-primary hover:bg-navy-700'}`}
+                  style={{ width: collapsed && !isMobile ? 36 : 'calc(100% - 12px)' }}>
+                  <span className={`flex-shrink-0 ${active ? 'text-blue-400' : 'text-ink-muted group-hover:text-ink-secondary'}`}>{item.icon}</span>
+                  {(!collapsed || isMobile) && (
+                    <>
+                      <span className="flex-1 whitespace-nowrap text-xs">{item.label}</span>
+                      {badge != null && <span className="text-[10px] font-mono bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full">{badge}</span>}
+                    </>
+                  )}
+                </button>
+              )
+            })}
           </div>
-          {!collapsed && (
-            <span className="ml-2.5 font-semibold text-ink-primary text-sm tracking-tight whitespace-nowrap">ITDocs</span>
-          )}
+        ))}
+
+        <div className="my-1.5 mx-3 border-t border-edge-subtle" />
+
+        <button onClick={() => handleNav('settings')}
+          title={collapsed && !isMobile ? 'Settings' : undefined}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-md text-sm transition-all text-left text-ink-secondary hover:text-ink-primary hover:bg-navy-700 group ${currentView === 'settings' ? 'bg-blue-500/10 text-blue-300' : ''}`}
+          style={{ width: collapsed && !isMobile ? 36 : 'calc(100% - 12px)' }}>
+          <Settings size={16} className="flex-shrink-0 text-ink-muted group-hover:text-ink-secondary" />
+          {(!collapsed || isMobile) && <span>Settings</span>}
+        </button>
+      </nav>
+
+      {/* User footer */}
+      {(!collapsed || isMobile) && (
+        <div className="border-t border-edge-subtle px-3 py-3 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">JD</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-ink-primary truncate">John Doe</p>
+              <p className="text-[10px] text-ink-muted truncate">admin@corp.local</p>
+            </div>
+            <button onClick={onLogout} className="text-ink-muted hover:text-red-400 transition-colors" title="Sign out">
+              <LogOut size={13} />
+            </button>
+          </div>
         </div>
-
-        {/* Nav */}
-        <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
-          {NAV_ITEMS.map(item => {
-            const active = currentView === item.id || (currentView === 'asset-detail' && item.id === 'assets') || (currentView === 'doc-editor' && item.id === 'docs')
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  navigate(item.id)
-                  setMobileOpen(false)
-                }}
-                title={collapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-md text-sm transition-all duration-100 text-left group
-                  ${active
-                    ? 'bg-blue-500/10 text-blue-300'
-                    : 'text-ink-secondary hover:text-ink-primary hover:bg-navy-700'
-                  }`}
-                style={{ width: collapsed ? 36 : 'calc(100% - 12px)' }}
-              >
-                <span className={`flex-shrink-0 ${active ? 'text-blue-400' : 'text-ink-muted group-hover:text-ink-secondary'}`}>
-                  {item.icon}
-                </span>
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 whitespace-nowrap">{item.label}</span>
-                    {item.badge && (
-                      <span className="text-[10px] font-mono bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full leading-none">
-                        {item.badge}
-                      </span>
-                    )}
-                  </>
-                )}
-              </button>
-            )
-          })}
-
-          <div className="my-2 mx-3 border-t border-edge-subtle" />
-
-          <button
-            onClick={() => {
-                  navigate('settings')
-                  setMobileOpen(false)
-                }}
-            title={collapsed ? 'Settings' : undefined}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-md text-sm transition-all text-left text-ink-secondary hover:text-ink-primary hover:bg-navy-700
-              ${currentView === 'settings' ? 'bg-blue-500/10 text-blue-300' : ''}`}
-            style={{ width: collapsed ? 36 : 'calc(100% - 12px)' }}
-          >
-            <Settings size={16} className="flex-shrink-0 text-ink-muted" />
-            {!collapsed && <span>Settings</span>}
+      )}
+      {collapsed && !isMobile && (
+        <div className="flex justify-center py-3 border-t border-edge-subtle flex-shrink-0">
+          <button onClick={onLogout} className="text-ink-muted hover:text-red-400 transition-colors" title="Sign out">
+            <LogOut size={14} />
           </button>
-        </nav>
+        </div>
+      )}
 
-        {/* User */}
-        {!collapsed && (
-          <div className="border-t border-edge-subtle px-3 py-3 flex-shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">JD</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-ink-primary truncate">John Doe</p>
-                <p className="text-[10px] text-ink-muted truncate">admin@corp.local</p>
-              </div>
-              <button className="text-ink-muted hover:text-red-400 transition-colors" title="Sign out">
-                <LogOut size={13} />
+      {/* Collapse toggle — desktop only */}
+      {!isMobile && (
+        <div className={`border-t border-edge-subtle flex-shrink-0 ${collapsed ? 'flex justify-center py-2' : ''}`}>
+          <button onClick={onToggleCollapse}
+            className={`flex items-center gap-1.5 text-ink-muted hover:text-ink-primary transition-colors text-xs py-2 px-3 w-full hover:bg-navy-700 ${collapsed ? 'justify-center' : ''}`}>
+            {collapsed ? <ChevronRight size={14} /> : (<><ChevronLeft size={14} /><span>Collapse</span></>)}
+          </button>
+        </div>
+      )}
+
+      {/* Org dropdown — rendered inside Sidebar, fixed-position so it escapes overflow */}
+      {orgOpen && (
+        <>
+          <div className="fixed inset-0 z-[55]" onClick={() => setOrgOpen(false)} />
+          <div className="fixed left-3 z-[60] w-56 bg-navy-750 border border-edge-default rounded-xl shadow-2xl overflow-hidden"
+            style={{ top: isMobile ? 120 : 112 }}
+            onClick={e => e.stopPropagation()}>
+            <div className="px-3 py-2 border-b border-edge-subtle">
+              <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">Switch Organization</p>
+            </div>
+            {orgs.map(org => (
+              <button key={org.id}
+                onClick={() => {
+                  switchOrg(org.id)
+                  setOrgOpen(false)
+                  navigate('dashboard')
+                  toast(`Switched to ${org.name}`, 'info')
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-navy-700 transition-colors text-left">
+                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
+                  style={{ backgroundColor: org.color }}>{org.initials}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-ink-primary truncate">{org.name}</p>
+                  {org.description && <p className="text-[9px] text-ink-muted truncate">{org.description}</p>}
+                </div>
+                {org.id === currentOrg.id && <Check size={11} className="text-blue-400 flex-shrink-0" />}
+              </button>
+            ))}
+            <div className="border-t border-edge-subtle">
+              <button onClick={() => { setOrgOpen(false); setOrgModalOpen(true) }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors">
+                <Plus size={12} /> New Organization
               </button>
             </div>
           </div>
-        )}
+        </>
+      )}
 
-        {/* Collapse toggle */}
-        <div className={`border-t border-edge-subtle flex-shrink-0 ${collapsed ? 'flex justify-center py-2' : ''}`}>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className={`flex items-center gap-1.5 text-ink-muted hover:text-ink-primary transition-colors text-xs py-2 px-3 w-full hover:bg-navy-700 ${collapsed ? 'justify-center' : ''}`}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? <ChevronRight size={14} /> : (
-              <>
-                <ChevronLeft size={14} />
-                <span>Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
+      {orgModalOpen && <OrgModal onClose={() => setOrgModalOpen(false)} onAdd={o => { addOrg(o); setOrgModalOpen(false) }} />}
+    </div>
+  )
+}
+
+// ─── Layout ───────────────────────────────────────────────────────────────────
+
+export default function Layout({ currentView, navigate, onLogout, children }: Props) {
+  const { currentOrg, licenses } = useApp()
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [theme, setThemeState] = useState(getTheme)
+
+  const expiring = licenses.filter(l => l.status === 'expiring' || l.status === 'expired').length
+
+  const sidebarProps = {
+    currentView, navigate, onLogout,
+    collapsed, onToggleCollapse: () => setCollapsed(v => !v),
+    isMobile: false,
+  }
+
+  return (
+    <div className="flex h-screen bg-navy-950 overflow-hidden font-sans">
+
+      {/* Desktop sidebar */}
+      <aside
+        className="hidden md:block flex-shrink-0 border-r border-edge-subtle transition-all duration-200"
+        style={{ width: collapsed ? 60 : 224 }}>
+        <Sidebar {...sidebarProps} />
       </aside>
 
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 border-r border-edge-subtle shadow-2xl"
+            style={{ animation: 'slideInLeft 0.2s ease-out' }}>
+            <Sidebar {...sidebarProps} isMobile collapsed={false} onClose={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      )}
+
       {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+
         {/* Topbar */}
-        <header className="h-14 border-b border-edge-subtle bg-navy-900 flex items-center px-4 gap-3 flex-shrink-0">
-          <button
-            className="lg:hidden w-8 h-8 flex items-center justify-center text-ink-secondary"
-            onClick={() => setMobileOpen(true)}
-          >
-            <Menu size={18}/>
+        <header className="h-14 border-b border-edge-subtle bg-navy-900 flex items-center px-3 sm:px-4 gap-2 sm:gap-3 flex-shrink-0">
+
+          {/* Hamburger */}
+          <button onClick={() => setMobileOpen(true)}
+            className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-ink-secondary hover:text-ink-primary hover:bg-navy-700 transition-colors flex-shrink-0">
+            <Menu size={18} />
           </button>
 
-          {/* Search */}
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="flex items-center gap-2 flex-1 max-w-xs px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default hover:border-edge-strong text-ink-muted text-sm transition-colors"
-          >
-            <Search size={13} />
-            <span className="hidden sm:block text-xs">
-              Search assets, docs, passwords…
-            </span>
+          {/* Org badge */}
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-navy-800 border border-edge-subtle flex-shrink-0">
+            <div className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold text-white"
+              style={{ backgroundColor: currentOrg.color }}>{currentOrg.initials}</div>
+            <span className="text-xs text-ink-secondary font-medium hidden lg:block">{currentOrg.name}</span>
+            <Building2 size={11} className="text-ink-muted" />
+          </div>
 
-            <span className="sm:hidden">
-              Search
-            </span>
-            <span className="ml-auto text-[10px] font-mono bg-navy-600 text-ink-muted px-1.5 py-0.5 rounded border border-edge-default">⌘K</span>
+          {/* Search */}
+          <button onClick={() => setSearchOpen(true)}
+            className="flex items-center gap-2 flex-1 min-w-0 max-w-sm px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default hover:border-edge-strong text-ink-muted transition-colors">
+            <Search size={13} className="flex-shrink-0" />
+            <span className="text-xs truncate hidden sm:block">Search assets, docs…</span>
+            <span className="ml-auto text-[10px] font-mono bg-navy-600 text-ink-muted px-1.5 py-0.5 rounded border border-edge-default hidden md:block flex-shrink-0">⌘K</span>
           </button>
 
           <div className="flex-1" />
 
-          {/* Notifications */}
+          {/* Bell */}
           <div className="relative">
-            <button
-              onClick={() => { setNotifOpen(!notifOpen); setUserOpen(false) }}
-              className="relative w-8 h-8 rounded-lg flex items-center justify-center text-ink-secondary hover:text-ink-primary hover:bg-navy-700 transition-colors"
-            >
+            <button onClick={() => setNotifOpen(v => !v)}
+              className="relative w-8 h-8 rounded-lg flex items-center justify-center text-ink-secondary hover:text-ink-primary hover:bg-navy-700 transition-colors">
               <Bell size={16} />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-orange-500" />
+              {expiring > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-orange-500" />}
             </button>
             {notifOpen && (
               <div className="absolute right-0 top-10 w-72 bg-navy-750 border border-edge-default rounded-xl shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-edge-subtle">
                   <span className="text-xs font-semibold text-ink-primary">Notifications</span>
-                  <button onClick={() => setNotifOpen(false)} className="text-ink-muted hover:text-ink-primary"><X size={13} /></button>
+                  <button onClick={() => setNotifOpen(false)}><X size={13} className="text-ink-muted" /></button>
                 </div>
-                {[
-                  { title: '2 licenses expiring soon', time: '2h ago', dot: 'bg-orange-500' },
-                  { title: 'Asset "SRV-PROD-01" updated', time: '5h ago', dot: 'bg-blue-400' },
-                  { title: 'New doc added: Network Topology', time: '1d ago', dot: 'bg-green-500' },
-                ].map((n, i) => (
-                  <div key={i} className="px-4 py-3 hover:bg-navy-700 cursor-pointer border-b border-edge-subtle last:border-0 transition-colors">
+                {expiring > 0 ? (
+                  <div className="px-4 py-3 hover:bg-navy-700 cursor-pointer border-b border-edge-subtle" onClick={() => { navigate('licenses'); setNotifOpen(false) }}>
                     <div className="flex items-start gap-2.5">
-                      <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${n.dot}`} />
+                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 bg-orange-500 flex-shrink-0" />
                       <div>
-                        <p className="text-xs text-ink-primary">{n.title}</p>
-                        <p className="text-[10px] text-ink-muted mt-0.5 font-mono">{n.time}</p>
+                        <p className="text-xs text-ink-primary">{expiring} license{expiring > 1 ? 's' : ''} expiring or expired</p>
+                        <p className="text-[10px] text-ink-muted mt-0.5 font-mono">{currentOrg.name} · click to view</p>
                       </div>
                     </div>
                   </div>
-                ))}
+                ) : null}
+                <div className="px-4 py-4 text-center">
+                  <p className="text-[10px] text-ink-muted">No other notifications</p>
+                </div>
               </div>
             )}
           </div>
 
-          {/* User menu */}
-          <div className="relative">
-            <button
-              onClick={() => { setUserOpen(!userOpen); setNotifOpen(false) }}
-              className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-navy-700 transition-colors"
-            >
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-semibold text-white">JD</div>
-              <ChevronDown className="hidden sm:block text-ink-muted"/>
-            </button>
-            {userOpen && (
-              <div className="absolute right-0 top-10 w-52 bg-navy-750 border border-edge-default rounded-xl shadow-2xl z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-edge-subtle">
-                  <p className="text-xs font-medium text-ink-primary">John Doe</p>
-                  <p className="text-[10px] text-ink-muted mt-0.5">admin@corp.local</p>
-                </div>
-                {['Profile', 'API Keys', 'Appearance', 'Sign out'].map((item, i) => (
-                  <button key={i} className="w-full px-4 py-2.5 text-left text-xs text-ink-secondary hover:text-ink-primary hover:bg-navy-700 transition-colors flex items-center gap-2">
-                    {item === 'Sign out' ? <LogOut size={12} className="text-red-400" /> : <User size={12} />}
-                    <span className={item === 'Sign out' ? 'text-red-400' : ''}>{item}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Theme toggle */}
+          <button
+            onClick={() => { const t = toggleTheme(); setThemeState(t) }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-secondary hover:text-ink-primary hover:bg-navy-700 transition-colors flex-shrink-0"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+
+          {/* Mobile logout */}
+          <button onClick={onLogout}
+            className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-red-400 hover:bg-navy-700 transition-colors flex-shrink-0"
+            title="Sign out">
+            <LogOut size={15} />
+          </button>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto bg-navy-950 p-3 md:p-0">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto bg-navy-950">{children}</main>
       </div>
 
       {/* Search overlay */}
       {searchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center md:pt-24 bg-black/60 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
-          <div className="w-full max-w-xl md:mx-4 bg-navy-800 border border-edge-strong rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
+          <div className="w-full max-w-xl bg-navy-800 border border-edge-strong rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-4 py-3 border-b border-edge-subtle">
               <Search size={16} className="text-ink-muted flex-shrink-0" />
-              <input
-                autoFocus
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+              <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent text-ink-primary text-sm placeholder:text-ink-muted outline-none"
-                placeholder="Search assets, documents, passwords…"
-              />
-              <kbd className="text-[10px] font-mono bg-navy-700 text-ink-muted px-1.5 py-0.5 rounded border border-edge-default">ESC</kbd>
+                placeholder="Search assets, documents, passwords…" />
+              <button onClick={() => setSearchOpen(false)}><X size={14} className="text-ink-muted hover:text-ink-primary" /></button>
             </div>
             <div className="p-2">
               {[
@@ -279,8 +443,8 @@ export default function Layout({ currentView, navigate, children }: Props) {
                 { type: 'Password', label: 'AWS Root Account', sub: 'Passwords · Cloud' },
               ].map((r, i) => (
                 <button key={i} onClick={() => setSearchOpen(false)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-navy-700 transition-colors text-left">
-                  <span className="text-[10px] font-mono bg-navy-600 text-ink-muted px-1.5 py-0.5 rounded">{r.type}</span>
-                  <div>
+                  <span className="text-[10px] font-mono bg-navy-600 text-ink-muted px-1.5 py-0.5 rounded flex-shrink-0">{r.type}</span>
+                  <div className="min-w-0">
                     <p className="text-xs text-ink-primary">{r.label}</p>
                     <p className="text-[10px] text-ink-muted">{r.sub}</p>
                   </div>
@@ -291,10 +455,7 @@ export default function Layout({ currentView, navigate, children }: Props) {
         </div>
       )}
 
-      {/* Click-outside for dropdowns */}
-      {(notifOpen || userOpen) && (
-        <div className="fixed inset-0 z-40" onClick={() => { setNotifOpen(false); setUserOpen(false) }} />
-      )}
+      {notifOpen && <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />}
     </div>
   )
 }

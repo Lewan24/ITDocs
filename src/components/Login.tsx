@@ -1,121 +1,125 @@
 import { useState } from 'react'
-import { Shield, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Terminal } from 'lucide-react'
 
 interface Props { onLogin: () => void }
 
 export default function Login({ onLogin }: Props) {
   const [email, setEmail] = useState('admin@corp.local')
-  const [password, setPassword] = useState('••••••••')
+  const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
-  const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [focused, setFocused] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => { setLoading(false); onLogin() }, 800)
+    setTimeout(() => { setLoading(false); onLogin() }, 700)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-navy-900 relative overflow-hidden">
-      {/* Background grid */}
+    <div className="min-h-screen flex items-center justify-center bg-navy-950 relative overflow-hidden select-none">
+
+      {/* Dot-grid background */}
       <div
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0"
         style={{
-          backgroundImage: 'linear-gradient(#e6edf5 1px, transparent 1px), linear-gradient(90deg, #e6edf5 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
+          backgroundImage: 'radial-gradient(circle, var(--_edge-default, #252525) 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+          opacity: 0.8,
         }}
       />
-      {/* Radial glow */}
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 40%, rgba(37,99,235,0.08) 0%, transparent 70%)' }} />
+      {/* Subtle vignette */}
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, var(--_bg-950, #070707) 100%)' }} />
 
-      <div className="relative z-10 w-full max-w-[400px] px-4">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-blue-500 flex items-center justify-center mb-4 shadow-lg" style={{ boxShadow: '0 0 32px rgba(37,99,235,0.4)' }}>
-            <Shield size={22} className="text-white" />
+      <div className="relative z-10 w-full max-w-[380px] px-5">
+
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-md bg-blue-500 flex items-center justify-center flex-shrink-0">
+              <Terminal size={15} className="text-white" />
+            </div>
+            <span className="font-mono text-ink-primary font-medium tracking-tight text-lg">
+              ITDocs
+              <span className="cursor-blink ml-0.5 text-blue-400">_</span>
+            </span>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-primary">ITDocs</h1>
-          <p className="text-ink-muted text-sm mt-1">Enterprise IT Documentation Platform</p>
+          <h1 className="text-xl font-semibold text-ink-primary leading-tight">Sign in</h1>
+          <p className="text-sm text-ink-muted mt-1">Your IT documentation workspace</p>
         </div>
 
-        {/* Card */}
-        <div className="rounded-xl border border-edge-default bg-navy-800 p-6 shadow-2xl">
-          <h2 className="text-base font-semibold text-ink-primary mb-5">Sign in to your workspace</h2>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-ink-secondary mb-1.5">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onFocus={() => setFocused('email')}
+              onBlur={() => setFocused(null)}
+              placeholder="you@corp.local"
+              className="w-full px-3 py-2.5 rounded-md bg-navy-800 border text-ink-primary text-sm placeholder:text-ink-muted focus:outline-none transition-colors font-mono"
+              style={{ borderColor: focused === 'email' ? 'var(--_blue-500)' : 'var(--_edge-default)' }}
+            />
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-ink-secondary mb-1.5">Email address</label>
+          <div>
+            <label className="block text-xs font-medium text-ink-secondary mb-1.5">
+              Password
+            </label>
+            <div className="relative">
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg bg-navy-700 border border-edge-default text-ink-primary text-sm placeholder:text-ink-muted focus:border-blue-500 focus:outline-none transition-colors"
-                placeholder="you@company.com"
+                type={showPass ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onFocus={() => setFocused('pass')}
+                onBlur={() => setFocused(null)}
+                placeholder="••••••••••••"
+                className="w-full px-3 py-2.5 pr-10 rounded-md bg-navy-800 border text-ink-primary text-sm placeholder:text-ink-muted focus:outline-none transition-colors font-mono"
+                style={{ borderColor: focused === 'pass' ? 'var(--_blue-500)' : 'var(--_edge-default)' }}
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-ink-secondary mb-1.5">Password</label>
-              <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg bg-navy-700 border border-edge-default text-ink-primary text-sm placeholder:text-ink-muted focus:border-blue-500 focus:outline-none transition-colors"
-                  placeholder="Enter your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-secondary transition-colors"
-                >
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div
-                  onClick={() => setRemember(!remember)}
-                  className={`w-4 h-4 rounded border flex items-center justify-center transition-all cursor-pointer ${remember ? 'bg-blue-500 border-blue-500' : 'border-edge-strong bg-transparent'}`}
-                >
-                  {remember && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className="text-xs text-ink-secondary">Remember me</span>
-              </label>
-              <button type="button" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-                Forgot password?
+              <button
+                type="button"
+                onClick={() => setShowPass(!showPass)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-secondary transition-colors"
+              >
+                {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-              style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Signing in…
-                </span>
-              ) : 'Sign in'}
+          <div className="flex items-center justify-end pt-0.5">
+            <button type="button" className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-mono">
+              forgot_password()
             </button>
-          </form>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2.5 rounded-md bg-blue-500 hover:bg-blue-400 text-white text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-1 font-mono"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                authenticating...
+              </span>
+            ) : '→ sign_in()'}
+          </button>
+        </form>
+
+        {/* Footer */}
+        <div className="mt-8 pt-5 border-t border-edge-subtle flex items-center justify-between">
+          <span className="text-[11px] font-mono text-ink-muted">v1.0.0 · self-hosted</span>
+          <span className="text-[11px] font-mono text-ink-muted">corp.local</span>
         </div>
 
-        <p className="text-center text-xs text-ink-muted mt-6">
-          Self-hosted · v1.0.0 · <span className="text-ink-link hover:underline cursor-pointer">Documentation</span>
-        </p>
       </div>
     </div>
   )

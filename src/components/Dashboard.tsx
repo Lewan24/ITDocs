@@ -120,7 +120,7 @@ export default function Dashboard({ navigate }: Props) {
         <div onClick={() => navigate('passwords')} className="cursor-pointer">
           <StatCard icon={<KeyRound size={16} />} label="Password Entries" value={passwords.length} sub="All secured" color="text-purple-500" />
         </div>
-        <div onClick={() => navigate('docs')} className="cursor-pointer">
+        <div onClick={() => navigate('knowledge')} className="cursor-pointer">
           <StatCard icon={<FileText size={16} />} label="Documents" value={64} sub="4 updated today" color="text-green-400" trend="+2" />
         </div>
         <div onClick={() => navigate('licenses')} className="cursor-pointer">
@@ -162,7 +162,7 @@ export default function Dashboard({ navigate }: Props) {
             <div className="p-3 grid grid-cols-2 gap-2">
               {[
                 { label: 'Add Asset', icon: <Server size={14} />, action: () => navigate('assets'), color: 'text-blue-400', bg: 'group-hover:bg-blue-500/10' },
-                { label: 'New Doc', icon: <FileText size={14} />, action: () => navigate('docs'), color: 'text-green-400', bg: 'group-hover:bg-green-500/10' },
+                { label: 'New Doc', icon: <FileText size={14} />, action: () => navigate('knowledge'), color: 'text-green-400', bg: 'group-hover:bg-green-500/10' },
                 { label: 'Add Password', icon: <KeyRound size={14} />, action: () => navigate('passwords'), color: 'text-purple-500', bg: 'group-hover:bg-purple-500/10' },
                 { label: 'Add License', icon: <CreditCard size={14} />, action: () => navigate('licenses'), color: 'text-orange-400', bg: 'group-hover:bg-orange-500/10' },
               ].map((a, i) => (
@@ -204,11 +204,11 @@ export default function Dashboard({ navigate }: Props) {
         <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-edge-subtle">
             <div className="flex items-center gap-2 text-xs font-semibold text-ink-primary"><FileText size={13} className="text-green-400" /> Recent Documents</div>
-            <button onClick={() => navigate('docs')} className="text-[10px] text-ink-link hover:text-blue-300 transition-colors flex items-center gap-1">View all <ArrowRight size={10} /></button>
+            <button onClick={() => navigate('knowledge')} className="text-[10px] text-ink-link hover:text-blue-300 transition-colors flex items-center gap-1">View all <ArrowRight size={10} /></button>
           </div>
           <div className="divide-y divide-edge-subtle">
             {RECENT_DOCS.map((doc, i) => (
-              <button key={i} onClick={() => navigate('doc-editor')} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-navy-700/50 transition-colors text-left group">
+              <button key={i} onClick={() => navigate('knowledge')} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-navy-700/50 transition-colors text-left group">
                 <span className="text-base flex-shrink-0">{doc.icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-ink-primary truncate group-hover:text-blue-300 transition-colors">{doc.title}</p>

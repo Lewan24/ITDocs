@@ -232,7 +232,7 @@ export default function AssetDetails({ assetId, navigate }: Props) {
       {tab === 'docs' && (
         <div className="space-y-3">
           {['Server Initial Setup Guide', 'VM Deployment Runbook', 'Maintenance Procedure'].map((title, i) => (
-            <button key={i} onClick={() => navigate('doc-editor')} className="w-full flex items-center gap-4 bg-navy-800 border border-edge-subtle rounded-xl px-5 py-4 hover:border-edge-default cursor-pointer transition-colors">
+            <button key={i} onClick={() => navigate('knowledge')} className="w-full flex items-center gap-4 bg-navy-800 border border-edge-subtle rounded-xl px-5 py-4 hover:border-edge-default cursor-pointer transition-colors">
               <FileText size={16} className="text-green-400 flex-shrink-0" />
               <div className="flex-1 text-left"><p className="text-sm font-medium text-ink-primary">{title}</p><p className="text-xs text-ink-muted mt-0.5">Updated 2026-06 · {asset.owner}</p></div>
               <ArrowLeft size={13} className="text-ink-muted rotate-180" />
