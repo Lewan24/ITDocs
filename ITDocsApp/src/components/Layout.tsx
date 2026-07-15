@@ -8,7 +8,8 @@ import {
 } from 'lucide-react'
 import type { View } from '../App'
 import { useApp } from '../context/useApp'
-import type { Organization } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
+import type { Organization } from '../api/types'
 import { toggleTheme, getTheme } from '../lib/theme'
 
 type NavSection = { label: string; items: { id: View; label: string; icon: React.ReactNode }[] }
@@ -69,13 +70,19 @@ function OrgModal({ onClose, onAdd }: { onClose: () => void; onAdd: (o: Omit<Org
   const [description, setDescription] = useState('')
   const [color, setColor] = useState('#2563eb')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706', '#0891b2', '#be185d', '#374151']
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim()) { setError('Name is required'); return }
     const initials = name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    onAdd({ name: name.trim(), description, color, initials })
-    onClose()
+    setSubmitting(true)
+    try {
+      await onAdd({ name: name.trim(), description, color, initials })
+      onClose()
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -111,8 +118,10 @@ function OrgModal({ onClose, onAdd }: { onClose: () => void; onAdd: (o: Omit<Org
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-edge-subtle bg-navy-900/40">
-          <button onClick={onClose} className="px-3.5 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-          <button onClick={submit} className="px-3.5 py-1.5 rounded-lg text-white text-xs font-medium transition-all active:scale-95" style={{ backgroundColor: color, boxShadow: `0 1px 10px ${color}55` }}>Create</button>
+          <button onClick={onClose} disabled={submitting} className="px-3.5 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-50">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="px-3.5 py-1.5 rounded-lg text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-50" style={{ backgroundColor: color, boxShadow: `0 1px 10px ${color}55` }}>
+            {submitting ? 'Creating…' : 'Create'}
+          </button>
         </div>
       </div>
     </div>
@@ -133,6 +142,7 @@ function Sidebar({
   onClose?: () => void
 }) {
   const { orgs, currentOrg, switchOrg, licenses, addOrg, toast } = useApp()
+  const { user } = useAuth()
   const [orgOpen, setOrgOpen] = useState(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
 
@@ -141,6 +151,21 @@ function Sidebar({
   const handleNav = (v: View) => {
     navigate(v)
     onClose?.()
+  }
+
+  // No org yet (e.g. still loading right after login, before the
+  // auto-provisioned default org has been fetched) — render a lightweight shell.
+  if (!currentOrg) {
+    return (
+      <div className="flex flex-col h-full bg-navy-900">
+        <div className="h-14 flex items-center px-4 border-b border-edge-subtle flex-shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+            <Shield size={14} className="text-white" />
+          </div>
+          {(!collapsed || isMobile) && <span className="ml-2.5 font-semibold text-ink-primary text-sm">ITDocs</span>}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -171,7 +196,7 @@ function Sidebar({
               style={{ backgroundColor: currentOrg.color }}>{currentOrg.initials}</div>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-xs font-medium text-ink-primary truncate leading-tight">{currentOrg.name}</p>
-              <p className="text-[9px] text-ink-muted leading-tight">Organization</p>
+              <p className="text-[9px] text-ink-muted leading-tight">{currentOrg.role}</p>
             </div>
             <ChevronDown size={12} className={`text-ink-muted transition-transform flex-shrink-0 ${orgOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -232,10 +257,12 @@ function Sidebar({
       {(!collapsed || isMobile) && (
         <div className="border-t border-edge-subtle px-3 py-3 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">JD</div>
+            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
+              {(user?.displayName ?? '?').split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-ink-primary truncate">John Doe</p>
-              <p className="text-[10px] text-ink-muted truncate">admin@corp.local</p>
+              <p className="text-xs font-medium text-ink-primary truncate">{user?.displayName ?? 'Unknown user'}</p>
+              <p className="text-[10px] text-ink-muted truncate">{user?.email ?? ''}</p>
             </div>
             <button onClick={onLogout} className="text-ink-muted hover:text-red-400 transition-colors" title="Sign out">
               <LogOut size={13} />
@@ -299,7 +326,7 @@ function Sidebar({
         </>
       )}
 
-      {orgModalOpen && <OrgModal onClose={() => setOrgModalOpen(false)} onAdd={o => { addOrg(o); setOrgModalOpen(false) }} />}
+      {orgModalOpen && <OrgModal onClose={() => setOrgModalOpen(false)} onAdd={addOrg} />}
     </div>
   )
 }
@@ -357,12 +384,14 @@ export default function Layout({ currentView, navigate, onLogout, children }: Pr
           </button>
 
           {/* Org badge */}
-          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-navy-800 border border-edge-subtle flex-shrink-0">
-            <div className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold text-white"
-              style={{ backgroundColor: currentOrg.color }}>{currentOrg.initials}</div>
-            <span className="text-xs text-ink-secondary font-medium hidden lg:block">{currentOrg.name}</span>
-            <Building2 size={11} className="text-ink-muted" />
-          </div>
+          {currentOrg && (
+            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-navy-800 border border-edge-subtle flex-shrink-0">
+              <div className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold text-white"
+                style={{ backgroundColor: currentOrg.color }}>{currentOrg.initials}</div>
+              <span className="text-xs text-ink-secondary font-medium hidden lg:block">{currentOrg.name}</span>
+              <Building2 size={11} className="text-ink-muted" />
+            </div>
+          )}
 
           {/* Search */}
           <button onClick={() => setSearchOpen(true)}
@@ -393,7 +422,7 @@ export default function Layout({ currentView, navigate, onLogout, children }: Pr
                       <div className="w-1.5 h-1.5 rounded-full mt-1.5 bg-orange-500 flex-shrink-0" />
                       <div>
                         <p className="text-xs text-ink-primary">{expiring} license{expiring > 1 ? 's' : ''} expiring or expired</p>
-                        <p className="text-[10px] text-ink-muted mt-0.5 font-mono">{currentOrg.name} · click to view</p>
+                        <p className="text-[10px] text-ink-muted mt-0.5 font-mono">{currentOrg?.name ?? ''} · click to view</p>
                       </div>
                     </div>
                   </div>

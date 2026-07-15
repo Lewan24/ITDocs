@@ -4,7 +4,7 @@ import {
   Edit2, Star, X, Trash2, RefreshCw, Shield, ChevronDown, ArrowLeft,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { PasswordEntry } from '../context/AppContext'
+import type { PasswordEntry } from '../context/AuthContext'
 
 const CATEGORIES = ['All', 'Cloud', 'Hypervisor', 'Network', 'Active Directory', 'Storage', 'Database', 'Application', 'Other']
 const CATEGORY_LIST = CATEGORIES.slice(1)

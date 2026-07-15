@@ -159,7 +159,7 @@ public class AuthController(
             throw new InvalidOperationException("User does not belong to the requested organization.");
 
         var expiresAt = DateTime.UtcNow.AddHours(8);
-        var token = jwt.CreateToken(user.Id, user.Email, active.OrganizationId, active.Role.ToString());
+        var token = jwt.CreateToken(user.Id, user.Email);
 
         return new AuthResponseDto(
             token,

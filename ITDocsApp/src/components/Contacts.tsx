@@ -4,7 +4,7 @@ import {
   Phone, Mail, Building2, User, Tag, Copy, Check,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Contact } from '../context/AppContext'
+import type { Contact } from '../context/AuthContext'
 
 const inp = (err?: string) =>
   `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`

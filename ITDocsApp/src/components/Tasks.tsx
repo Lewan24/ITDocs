@@ -4,7 +4,7 @@ import {
   User, CheckSquare, ChevronRight, ChevronLeft,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Task, Priority, TaskStatus } from '../context/AppContext'
+import type { Task, Priority, TaskStatus } from '../context/AuthContext'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low']
 const STATUSES: TaskStatus[] = ['todo', 'in-progress', 'done']

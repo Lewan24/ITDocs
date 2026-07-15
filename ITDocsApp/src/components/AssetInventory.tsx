@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, Star, X, Printer, Phone,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Asset, AssetType, AssetStatus } from '../context/AppContext'
+import type { Asset, AssetType, AssetStatus } from '../context/AuthContext'
 import type { View } from '../App'
 
 const TYPE_ICONS: Record<AssetType, React.ReactNode> = {

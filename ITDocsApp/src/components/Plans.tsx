@@ -4,7 +4,7 @@ import {
   CheckCircle2, Circle, Clock, Ban,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Plan, Priority, PlanStatus } from '../context/AppContext'
+import type { Plan, Priority, PlanStatus } from '../context/AuthContext'
 
 const STATUSES: PlanStatus[] = ['planned', 'in-progress', 'completed', 'cancelled']
 const PRIORITIES: Priority[] = ['high', 'medium', 'low']

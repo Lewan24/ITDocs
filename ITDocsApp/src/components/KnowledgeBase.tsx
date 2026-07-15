@@ -4,7 +4,7 @@ import {
   Tag, BookOpen,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { KnowledgeArticle } from '../context/AppContext'
+import type { KnowledgeArticle } from '../context/AuthContext'
 
 const CATEGORY_SUGGESTIONS = ['Operations', 'Network', 'Security', 'HR & Processes', 'Hardware', 'Software', 'Other']
 

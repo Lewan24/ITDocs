@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Info, XCircle, X } from 'lucide-react'
 import { useApp } from '../../context/useApp'
-import type { Toast as ToastType } from '../../context/AppContext'
+import type { Toast as ToastType } from '../../context/AuthContext'
 
 function ToastItem({ toast, onDismiss }: { toast: ToastType; onDismiss: () => void }) {
   const [visible, setVisible] = useState(false)

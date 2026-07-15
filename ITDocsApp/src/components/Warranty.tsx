@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertTriangle, Clock, Upload, ChevronDown,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { WarrantyItem, WarrantyType, WarrantyDocument } from '../context/AppContext'
+import type { WarrantyItem, WarrantyType, WarrantyDocument } from '../context/AuthContext'
 
 const WARRANTY_TYPES: WarrantyType[] = ['Standard', 'Extended', 'On-Site NBD', 'Carry-In', 'Mail-In', 'Other']
 const STATUS_FILTERS = ['All', 'Active', 'Expiring', 'Expired'] as const

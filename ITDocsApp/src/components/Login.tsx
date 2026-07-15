@@ -1,19 +1,28 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Eye, EyeOff, Terminal } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { ApiError } from '../api/http'
 
-interface Props { onLogin: () => void }
-
-export default function Login({ onLogin }: Props) {
-  const [email, setEmail] = useState('admin@corp.local')
+export default function Login() {
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [focused, setFocused] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    setError(null)
     setLoading(true)
-    setTimeout(() => { setLoading(false); onLogin() }, 700)
+    try {
+      await login(email, password)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Unable to sign in. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -61,6 +70,8 @@ export default function Login({ onLogin }: Props) {
               onFocus={() => setFocused('email')}
               onBlur={() => setFocused(null)}
               placeholder="you@corp.local"
+              autoComplete="email"
+              required
               className="w-full px-3 py-2.5 rounded-md bg-navy-800 border text-ink-primary text-sm placeholder:text-ink-muted focus:outline-none transition-colors font-mono"
               style={{ borderColor: focused === 'email' ? 'var(--_blue-500)' : 'var(--_edge-default)' }}
             />
@@ -78,6 +89,9 @@ export default function Login({ onLogin }: Props) {
                 onFocus={() => setFocused('pass')}
                 onBlur={() => setFocused(null)}
                 placeholder="••••••••••••"
+                autoComplete="current-password"
+                required
+                minLength={8}
                 className="w-full px-3 py-2.5 pr-10 rounded-md bg-navy-800 border text-ink-primary text-sm placeholder:text-ink-muted focus:outline-none transition-colors font-mono"
                 style={{ borderColor: focused === 'pass' ? 'var(--_blue-500)' : 'var(--_edge-default)' }}
               />
@@ -90,6 +104,10 @@ export default function Login({ onLogin }: Props) {
               </button>
             </div>
           </div>
+
+          {error && (
+            <p className="text-xs text-red-400 font-mono pt-0.5">{error}</p>
+          )}
 
           <div className="flex items-center justify-end pt-0.5">
             <button type="button" className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-mono">

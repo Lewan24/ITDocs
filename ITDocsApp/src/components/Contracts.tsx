@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertTriangle, Clock, ChevronDown,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Contract, ContractCategory, ContractStatus } from '../context/AppContext'
+import type { Contract, ContractCategory, ContractStatus } from '../context/AuthContext'
 
 const CATEGORIES: ContractCategory[] = ['Service', 'Support', 'Maintenance', 'Lease', 'NDA', 'SLA', 'Software', 'Other']
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CZK']

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Search, Network, Globe, Wifi, Server, Shield, Lock, Edit2, Trash2, X, ChevronDown, Dot } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Subnet, IPEntry, IPEntryStatus, SubnetType } from '../context/AppContext'
+import type { Subnet, IPEntry, IPEntryStatus, SubnetType } from '../context/AuthContext'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 

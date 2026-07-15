@@ -44,7 +44,7 @@ import type {
   DiagramEdge,
   DiagramDeviceType,
   DiagramConnectionType,
-} from '../context/AppContext'
+} from '../context/AuthContext'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

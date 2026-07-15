@@ -3,7 +3,7 @@ import {
   Search, Plus, X, Edit2, Trash2, ArrowLeft, Shield, ChevronDown,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Group, GroupType } from '../context/AppContext'
+import type { Group, GroupType } from '../context/AuthContext'
 
 const GROUP_TYPES: GroupType[] = ['AD Security', 'AD Distribution', 'AD OU', 'Local Group', 'VLAN Group', 'Project Team', 'Other']
 const ALL_TYPES = ['All', ...GROUP_TYPES] as const

@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, Circle, Server,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Incident, IncidentSeverity, IncidentStatus } from '../context/AppContext'
+import type { Incident, IncidentSeverity, IncidentStatus } from '../context/AuthContext'
 
 const SEVERITIES: IncidentSeverity[] = ['critical', 'high', 'medium', 'low']
 const STATUSES: IncidentStatus[] = ['open', 'investigating', 'resolved', 'closed']

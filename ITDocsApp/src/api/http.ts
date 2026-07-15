@@ -1,0 +1,76 @@
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://localhost:7121/api'
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+  }
+}
+
+function getToken(): string | null {
+  return localStorage.getItem('auth_token')
+}
+
+// Fired when the API returns 401 (token missing/expired/invalid) so the app
+// can drop back to the login screen from anywhere without prop-drilling.
+type UnauthorizedHandler = () => void
+let onUnauthorized: UnauthorizedHandler | null = null
+export function setUnauthorizedHandler(handler: UnauthorizedHandler) {
+  onUnauthorized = handler
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      ...options.headers,
+    },
+  })
+
+  if (res.status === 401) {
+    onUnauthorized?.()
+    throw new ApiError(401, 'Session expired. Please log in again.')
+  }
+
+  if (!res.ok) {
+    let message = res.statusText
+    try {
+      const body = await res.json()
+      message = body.title ?? body.message ?? (typeof body === 'string' ? body : message)
+    } catch {
+      /* no JSON body */
+    }
+    throw new ApiError(res.status, message)
+  }
+
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
+// Builds a query string from an object, skipping undefined/null values.
+export function qs(params: Record<string, string | undefined | null>): string {
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null) as [string, string][]
+  if (entries.length === 0) return ''
+  return '?' + new URLSearchParams(entries).toString()
+}
+
+export const http = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PUT', body: body !== undefined ? JSON.stringify(body) : undefined }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PATCH', body: body !== undefined ? JSON.stringify(body) : undefined }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<T>(path, {
+      method: 'POST',
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      body: form,
+    })
+  },
+}

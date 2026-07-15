@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ITDocsApi.Api;
 using ITDocsApi.Application;
 using ITDocsApi.Domain;
@@ -18,18 +20,23 @@ builder.Services.AddAutoMapper(cfg => cfg.AddProfile<AppMappingProfile>());
 
 // ── App services ──
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentOrgAccessor, HttpCurrentOrgAccessor>();
 builder.Services.AddSingleton<IPasswordCipher, DataProtectionPasswordCipher>();
 builder.Services.AddDataProtection(); // required by the cipher above
 builder.Services.AddScoped<IFileStorage, LocalFileStorage>();
 builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<ICurrentUserIdProvider, HttpCurrentUserIdProvider>();
+builder.Services.AddScoped<ICurrentUserContext, DbCurrentUserContext>();
 
 // ── Auth ──
 var jwt = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
     {
+        // Stops ASP.NET from rewriting "sub" -> ClaimTypes.NameIdentifier, "email" -> ClaimTypes.Email, etc.
+        // Claims on HttpContext.User now match exactly what you put in the token.
+        opt.MapInboundClaims = false;
+
         opt.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -56,7 +63,7 @@ builder.Services.AddCors(opt =>
 // ── Controllers / Swagger ──
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
-    o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

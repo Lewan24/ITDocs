@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { AppProvider } from './context/AppContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { AppProvider } from './context/AppProvider'
 import Login from './components/Login'
 import Layout from './components/Layout'
 import Dashboard from './components/Dashboard'
@@ -26,12 +27,10 @@ export type View =
   | 'plans' | 'incidents' | 'knowledge' | 'tasks' | 'settings'
   | 'groups' | 'warranty' | 'diagram'
 
-function AppInner() {
-  const [authed, setAuthed] = useState(false)
+function AuthenticatedApp() {
+  const { logout } = useAuth()
   const [view, setView] = useState<View>('dashboard')
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
-
-  if (!authed) return <Login onLogin={() => setAuthed(true)} />
 
   const navigate = (v: View, id?: string) => {
     setView(v)
@@ -61,19 +60,35 @@ function AppInner() {
   })()
 
   return (
-    <>
-      <Layout currentView={view} navigate={navigate} onLogout={() => setAuthed(false)}>
+    <AppProvider>
+      <Layout currentView={view} navigate={navigate} onLogout={logout}>
         {content}
       </Layout>
       <ToastContainer />
-    </>
+    </AppProvider>
   )
+}
+
+function Gate() {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-navy-950">
+        <span className="text-xs font-mono text-ink-muted">loading...</span>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) return <Login />
+
+  return <AuthenticatedApp />
 }
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppInner />
-    </AppProvider>
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   )
 }

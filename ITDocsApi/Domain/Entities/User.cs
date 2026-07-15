@@ -13,7 +13,7 @@ public class User
     public List<UserOrganization> Memberships { get; set; } = [];
 }
 
-public enum OrgRole { Owner, Admin, Member, ReadOnly }
+public enum OrgRole { ReadOnly = 0, Member = 1, Admin = 2, Owner = 3 }
 
 // Join entity: which orgs a user belongs to, and their role in each
 public class UserOrganization

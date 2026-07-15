@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text.Json;
 using ITDocsApi.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -53,7 +54,7 @@ public interface ICurrentOrgAccessor
 
 // ─── DbContext ──────────────────────────────────────────────────────────────
 
-public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentOrgAccessor currentOrg) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserIdProvider currentUser) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<UserOrganization> UserOrganizations => Set<UserOrganization>();
@@ -210,24 +211,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentOrgAcc
 
     private void ApplyOrganizationQueryFilters(ModelBuilder b)
     {
+        var buildFilter = typeof(AppDbContext)
+            .GetMethod(nameof(BuildOrgFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
         foreach (var entityType in b.Model.GetEntityTypes())
         {
             if (!typeof(BaseEntity).IsAssignableFrom(entityType.ClrType)) continue;
 
-            // Build: e => e.OrganizationId == currentOrg.OrganizationId
-            var parameter = Expression.Parameter(entityType.ClrType, "e");
-            var orgIdProperty = Expression.Property(parameter, nameof(BaseEntity.OrganizationId));
-            var currentOrgIdExpr = Expression.Property(
-                Expression.Constant(currentOrg), nameof(ICurrentOrgAccessor.OrganizationId));
-
-            // currentOrg.OrganizationId is Guid?, entity's is Guid — compare via .Value with a null-guard
-            var hasValue = Expression.Property(currentOrgIdExpr, nameof(Nullable<Guid>.HasValue));
-            var value = Expression.Property(currentOrgIdExpr, nameof(Nullable<Guid>.Value));
-            var equals = Expression.Equal(orgIdProperty, value);
-            var body = Expression.AndAlso(hasValue, equals);
-            var lambda = Expression.Lambda(body, parameter);
-
-            b.Entity(entityType.ClrType).HasQueryFilter(lambda);
+            var filter = buildFilter.MakeGenericMethod(entityType.ClrType).Invoke(this, null);
+            b.Entity(entityType.ClrType).HasQueryFilter((LambdaExpression)filter!);
         }
+    }
+
+    // Every BaseEntity row is only visible if the current user has a UserOrganization
+    // row for that entity's OrganizationId. No membership => entity effectively doesn't exist.
+    private LambdaExpression BuildOrgFilter<TEntity>() where TEntity : BaseEntity
+    {
+        Expression<Func<TEntity, bool>> filter = e =>
+            currentUser.UserId.HasValue &&
+            Set<UserOrganization>().Any(uo => uo.UserId == currentUser.UserId!.Value && uo.OrganizationId == e.OrganizationId);
+        return filter;
     }
 }

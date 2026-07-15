@@ -5,7 +5,7 @@ import {
   AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Organization } from '../context/AppContext'
+import type { Organization } from '../context/AuthContext'
 import type { View } from '../App'
 
 type Section = 'profile' | 'organizations' | 'appearance' | 'security' | 'notifications' | 'about'

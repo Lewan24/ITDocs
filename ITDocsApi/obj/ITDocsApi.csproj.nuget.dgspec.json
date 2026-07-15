@@ -1,25 +1,31 @@
 {
   "format": 1,
   "restore": {
-    "/home/artur/Documents/Dotnet-React/ITDocs/ITDocsApi/ITDocsApi.csproj": {}
+    "D:\\Programowanie\\React\\ITDocs\\ITDocsApi\\ITDocsApi.csproj": {}
   },
   "projects": {
-    "/home/artur/Documents/Dotnet-React/ITDocs/ITDocsApi/ITDocsApi.csproj": {
+    "D:\\Programowanie\\React\\ITDocs\\ITDocsApi\\ITDocsApi.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/artur/Documents/Dotnet-React/ITDocs/ITDocsApi/ITDocsApi.csproj",
+        "projectUniqueName": "D:\\Programowanie\\React\\ITDocs\\ITDocsApi\\ITDocsApi.csproj",
         "projectName": "ITDocsApi",
-        "projectPath": "/home/artur/Documents/Dotnet-React/ITDocs/ITDocsApi/ITDocsApi.csproj",
-        "packagesPath": "/home/artur/.nuget/packages/",
-        "outputPath": "/home/artur/Documents/Dotnet-React/ITDocs/ITDocsApi/obj/",
+        "projectPath": "D:\\Programowanie\\React\\ITDocs\\ITDocsApi\\ITDocsApi.csproj",
+        "packagesPath": "C:\\Users\\Artur\\.nuget\\packages\\",
+        "outputPath": "D:\\Programowanie\\React\\ITDocs\\ITDocsApi\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "E:\\Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/home/artur/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\Artur\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -110,7 +116,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.300/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Users\\Artur\\.dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.AspNetCore": "(,10.0.32767]",
             "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",

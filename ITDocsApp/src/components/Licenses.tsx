@@ -5,7 +5,7 @@ import {
   Key, Building2, Package, ChevronDown,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { License, LicenseCategory, LicenseType, LicenseStatus } from '../context/AppContext'
+import type { License, LicenseCategory, LicenseType, LicenseStatus } from '../context/AuthContext'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 

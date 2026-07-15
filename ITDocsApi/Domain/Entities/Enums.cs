@@ -1,6 +1,5 @@
 namespace ITDocsApi.Domain.Entities;
 
-
 public enum AssetType { Server, Workstation, Network, Storage, AP, Printer, Phone }
 public enum AssetStatus { Online, Offline, Maintenance, Unknown }
 public enum PasswordStrength { Strong, Medium, Weak }
