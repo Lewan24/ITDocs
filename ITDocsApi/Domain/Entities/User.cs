@@ -1,0 +1,28 @@
+namespace ITDocsApi.Domain.Entities;
+
+public class User
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Email { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public byte[] PasswordHash { get; set; } = [];
+    public byte[] PasswordSalt { get; set; } = [];
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsActive { get; set; } = true;
+
+    public List<UserOrganization> Memberships { get; set; } = [];
+}
+
+public enum OrgRole { Owner, Admin, Member, ReadOnly }
+
+// Join entity: which orgs a user belongs to, and their role in each
+public class UserOrganization
+{
+    public Guid UserId { get; set; }
+    public User User { get; set; } = null!;
+
+    public Guid OrganizationId { get; set; }
+    public Organization Organization { get; set; } = null!;
+
+    public OrgRole Role { get; set; } = OrgRole.Member;
+}

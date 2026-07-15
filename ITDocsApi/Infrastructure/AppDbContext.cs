@@ -1,0 +1,233 @@
+using System.Linq.Expressions;
+using System.Text.Json;
+using ITDocsApi.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+namespace ITDocsApi.Infrastructure;
+
+public static class JsonValueConverters
+{
+    public static ValueConverter<List<string>, string> StringList { get; } = new(
+        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+        v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>());
+
+    public static ValueComparer<List<string>> StringListComparer { get; } = new(
+        (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
+        v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+        v => v.ToList());
+
+    public static ValueConverter<List<Guid>, string> GuidList { get; } = new(
+        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+        v => JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null) ?? new List<Guid>());
+
+    public static ValueComparer<List<Guid>> GuidListComparer { get; } = new(
+        (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
+        v => v.Aggregate(0, (h, g) => HashCode.Combine(h, g.GetHashCode())),
+        v => v.ToList());
+}
+
+// Apply this to any property builder for a List<string> JSON column
+public static class PropertyBuilderExtensions
+{
+    public static void HasJsonStringList(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<List<string>> builder)
+    {
+        builder.HasConversion(JsonValueConverters.StringList, JsonValueConverters.StringListComparer)
+               .HasColumnType("jsonb");
+    }
+
+    public static void HasJsonGuidList(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<List<Guid>> builder)
+    {
+        builder.HasConversion(JsonValueConverters.GuidList, JsonValueConverters.GuidListComparer)
+               .HasColumnType("jsonb");
+    }
+}
+
+// ─── Current-org accessor (resolved from auth context, e.g. JWT claim) ────
+
+public interface ICurrentOrgAccessor
+{
+    Guid? OrganizationId { get; }
+}
+
+// ─── DbContext ──────────────────────────────────────────────────────────────
+
+public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentOrgAccessor currentOrg) : DbContext(options)
+{
+    public DbSet<User> Users => Set<User>();
+    public DbSet<UserOrganization> UserOrganizations => Set<UserOrganization>();
+    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Asset> Assets => Set<Asset>();
+    public DbSet<PasswordEntry> Passwords => Set<PasswordEntry>();
+    public DbSet<Subnet> Subnets => Set<Subnet>();
+    public DbSet<IPEntry> IPEntries => Set<IPEntry>();
+    public DbSet<License> Licenses => Set<License>();
+    public DbSet<Contact> Contacts => Set<Contact>();
+    public DbSet<Contract> Contracts => Set<Contract>();
+    public DbSet<Plan> Plans => Set<Plan>();
+    public DbSet<Incident> Incidents => Set<Incident>();
+    public DbSet<KnowledgeArticle> KnowledgeArticles => Set<KnowledgeArticle>();
+    public DbSet<WorkTask> Tasks => Set<WorkTask>();
+    public DbSet<Group> Groups => Set<Group>();
+    public DbSet<WarrantyItem> WarrantyItems => Set<WarrantyItem>();
+    public DbSet<DiagramNode> DiagramNodes => Set<DiagramNode>();
+    public DbSet<DiagramEdge> DiagramEdges => Set<DiagramEdge>();
+
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        base.OnModelCreating(b);
+
+        // ── Organization ──
+        b.Entity<Organization>(e =>
+        {
+            e.Property(o => o.Name).HasMaxLength(200).IsRequired();
+            e.Property(o => o.Color).HasMaxLength(20);
+            e.Property(o => o.Initials).HasMaxLength(8);
+        });
+
+        // ── Asset ──
+        b.Entity<Asset>(e =>
+        {
+            e.Property(a => a.Name).HasMaxLength(200).IsRequired();
+            e.Property(a => a.Tags).HasJsonStringList();
+            e.HasIndex(a => new { a.OrganizationId, a.Name });
+        });
+
+        // ── PasswordEntry ──
+        b.Entity<PasswordEntry>(e =>
+        {
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Tags).HasJsonStringList();
+        });
+
+        // ── Subnet / IPEntry ──
+        b.Entity<Subnet>(e =>
+        {
+            e.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            e.HasMany(s => s.Ips)
+             .WithOne(ip => ip.Subnet)
+             .HasForeignKey(ip => ip.SubnetId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<IPEntry>(e =>
+        {
+            e.Property(ip => ip.Ip).HasMaxLength(45).IsRequired();
+        });
+
+        // ── License ──
+        b.Entity<License>(e =>
+        {
+            e.Property(l => l.Name).HasMaxLength(200).IsRequired();
+            e.Property(l => l.Cost).HasColumnType("decimal(18,2)");
+        });
+
+        // ── Contact ──
+        b.Entity<Contact>(e =>
+        {
+            e.Property(c => c.Tags).HasJsonStringList();
+        });
+
+        // ── Contract ──
+        b.Entity<Contract>(e =>
+        {
+            e.Property(c => c.Value).HasColumnType("decimal(18,2)");
+        });
+
+        // ── Plan ──
+        b.Entity<Plan>(e =>
+        {
+            e.Property(p => p.Tags).HasJsonStringList();
+        });
+
+        // ── Incident ──
+        b.Entity<Incident>(e =>
+        {
+            e.Property(i => i.Tags).HasJsonStringList();
+            e.Property(i => i.AffectedSystems).HasJsonStringList();
+        });
+
+        // ── KnowledgeArticle ──
+        b.Entity<KnowledgeArticle>(e =>
+        {
+            e.Property(a => a.Tags).HasJsonStringList();
+        });
+
+        // ── WorkTask ──
+        b.Entity<WorkTask>(e =>
+        {
+            e.Property(t => t.Tags).HasJsonStringList();
+        });
+
+        // ── Group ──
+        b.Entity<Group>(e =>
+        {
+            e.Property(g => g.Tags).HasJsonStringList();
+            e.Property(g => g.Members).HasJsonStringList();
+            e.Property(g => g.LinkedAssets).HasJsonGuidList(); // see earlier note: consider a join table instead
+        });
+
+        // ── WarrantyItem ──
+        b.Entity<WarrantyItem>(e =>
+        {
+            e.Property(w => w.Name).HasMaxLength(200).IsRequired();
+        });
+
+        // ── DiagramNode / DiagramEdge ──
+        b.Entity<DiagramNode>(e =>
+        {
+            e.Property(n => n.Label).HasMaxLength(200);
+        });
+        b.Entity<DiagramEdge>(e =>
+        {
+            e.HasOne<DiagramNode>()
+             .WithMany()
+             .HasForeignKey(edge => edge.SourceNodeId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<DiagramNode>()
+             .WithMany()
+             .HasForeignKey(edge => edge.TargetNodeId)
+             .OnDelete(DeleteBehavior.Restrict); // avoid multiple cascade paths
+        });
+
+        b.Entity<User>(e =>
+        {
+            e.HasIndex(u => u.Email).IsUnique();
+            e.Property(u => u.Email).HasMaxLength(256).IsRequired();
+            e.Property(u => u.DisplayName).HasMaxLength(200);
+        });
+
+        b.Entity<UserOrganization>(e =>
+        {
+            e.HasKey(uo => new { uo.UserId, uo.OrganizationId });
+            e.HasOne(uo => uo.User).WithMany(u => u.Memberships).HasForeignKey(uo => uo.UserId);
+            e.HasOne(uo => uo.Organization).WithMany(o => o.Memberships).HasForeignKey(uo => uo.OrganizationId);
+        });
+        
+        // ── Global tenant-isolation filter for every BaseEntity ──
+        ApplyOrganizationQueryFilters(b);
+    }
+
+    private void ApplyOrganizationQueryFilters(ModelBuilder b)
+    {
+        foreach (var entityType in b.Model.GetEntityTypes())
+        {
+            if (!typeof(BaseEntity).IsAssignableFrom(entityType.ClrType)) continue;
+
+            // Build: e => e.OrganizationId == currentOrg.OrganizationId
+            var parameter = Expression.Parameter(entityType.ClrType, "e");
+            var orgIdProperty = Expression.Property(parameter, nameof(BaseEntity.OrganizationId));
+            var currentOrgIdExpr = Expression.Property(
+                Expression.Constant(currentOrg), nameof(ICurrentOrgAccessor.OrganizationId));
+
+            // currentOrg.OrganizationId is Guid?, entity's is Guid — compare via .Value with a null-guard
+            var hasValue = Expression.Property(currentOrgIdExpr, nameof(Nullable<Guid>.HasValue));
+            var value = Expression.Property(currentOrgIdExpr, nameof(Nullable<Guid>.Value));
+            var equals = Expression.Equal(orgIdProperty, value);
+            var body = Expression.AndAlso(hasValue, equals);
+            var lambda = Expression.Lambda(body, parameter);
+
+            b.Entity(entityType.ClrType).HasQueryFilter(lambda);
+        }
+    }
+}
