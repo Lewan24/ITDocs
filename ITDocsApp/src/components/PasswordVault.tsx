@@ -217,21 +217,30 @@ function PasswordDetail({ selected, onBack, onEdit, onDelete }: {
   useEffect(() => { setRevealedValue(null) }, [selected.id])
 
   const ensureRevealed = async (): Promise<string | null> => {
-    if (revealedValue !== null) return revealedValue
+    if (revealedValue !== null) 
+      return revealedValue
+
     setRevealing(true)
+
     try {
       const value = await revealPassword(selected.id)
       setRevealedValue(value)
+
       return value
-    } catch {
+    } 
+    catch (ex) {
+      console.error(ex)
       return null
-    } finally {
+    } 
+    finally {
       setRevealing(false)
     }
   }
 
   const toggleReveal = async () => {
-    if (revealedValue !== null) { setRevealedValue(null); return }
+    if (revealedValue !== null) 
+      { setRevealedValue(null); return }
+
     await ensureRevealed()
   }
 

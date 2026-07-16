@@ -22,7 +22,7 @@ export const assetsApi = {
 
 export const passwordsApi = {
   getAll: (organizationId: string) => http.get<PasswordEntry[]>(`/passwords${qs({ organizationId })}`),
-  reveal: (id: string) => http.get<string>(`/passwords/${id}/reveal`),
+  reveal: (id: string) => http.getString(`/passwords/${id}/reveal`),
   create: (organizationId: string, data: Omit<PasswordEntry, 'id' | 'updated' | 'strength'> & { password: string }) =>
     http.post<PasswordEntry>(`/passwords${qs({ organizationId })}`, data),
   update: (id: string, data: Omit<PasswordEntry, 'id' | 'updated' | 'strength'> & { password?: string }) =>

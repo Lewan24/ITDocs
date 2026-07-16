@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://localhost:7121/api'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5006/api'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -44,8 +44,39 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(res.status, message)
   }
 
-  if (res.status === 204) return undefined as T
+  if (res.status === 204) 
+    return undefined as T
+
   return res.json() as Promise<T>
+}
+
+async function requestString(path: string, options: RequestInit = {}): Promise<string> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      ...options.headers,
+    },
+  })
+
+  if (res.status === 401) {
+    onUnauthorized?.()
+    throw new ApiError(401, 'Session expired. Please log in again.')
+  }
+
+  if (!res.ok) {
+    let message = res.statusText
+    try {
+      const body = await res.json()
+      message = body.title ?? body.message ?? (typeof body === 'string' ? body : message)
+    } catch {
+      /* no JSON body */
+    }
+    throw new ApiError(res.status, message)
+  }
+
+  return res.text()
 }
 
 // Builds a query string from an object, skipping undefined/null values.
@@ -57,6 +88,7 @@ export function qs(params: Record<string, string | undefined | null>): string {
 
 export const http = {
   get: <T>(path: string) => request<T>(path),
+  getString: (path: string) => requestString(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>

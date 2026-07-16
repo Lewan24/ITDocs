@@ -34,6 +34,54 @@ const CAT_COLORS: Record<LicenseCategory, { bg: string; text: string }> = {
   Other:         { bg: 'bg-navy-500/20 border-edge-default',    text: 'text-ink-muted' },
 }
 
+function getLicenseCategoryFromString(category: string){
+  let licenseCategory: LicenseCategory = "Other"
+
+  switch (category.toUpperCase()){
+    case "SOFTWARE":
+      licenseCategory = "Software"
+      break;
+
+    case "OS":
+      licenseCategory = "OS"
+      break;
+
+    case "ANTIVIRUS":
+      licenseCategory = "Antivirus"
+      break;
+
+    case "DOMAIN":
+      licenseCategory = "Domain"
+      break;
+
+    case "CLOUD":
+      licenseCategory = "Cloud"
+      break;
+
+    case "SECURITY":
+      licenseCategory = "Security"
+      break;
+
+    case "OFFICE":
+      licenseCategory = "Office"
+      break;
+
+    case "VIRTUALIZATION":
+      licenseCategory = "Virtualization"
+      break;
+
+    case "BACKUP":
+      licenseCategory = "Backup"
+      break;
+
+    case "MONITORING":
+      licenseCategory = "Monitoring"
+      break;
+  }
+
+  return licenseCategory
+}
+
 function daysUntil(date: string) {
   return Math.ceil((new Date(date).getTime() - Date.now()) / 86400000)
 }
@@ -203,7 +251,7 @@ function LicenseDetail({ license, onEdit, onDelete, onToggleStar }: {
   onToggleStar: () => void
 }) {
   const sc = STATUS_CONFIG[license.status]
-  const cc = CAT_COLORS[license.category]
+  const cc = CAT_COLORS[getLicenseCategoryFromString(license.category)]
   const days = daysUntil(license.expiryDate)
   const [keyVisible, setKeyVisible] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -477,7 +525,7 @@ export default function Licenses() {
                 {filtered.map(lic => {
                   const days = daysUntil(lic.expiryDate)
                   const sc = STATUS_CONFIG[lic.status]
-                  const cc = CAT_COLORS[lic.category]
+                  const cc = CAT_COLORS[getLicenseCategoryFromString(lic.category)]
                   return (
                     <tr key={lic.id}
                       onClick={() => { setSelectedId(lic.id); setMobileDetailOpen(true) }}
