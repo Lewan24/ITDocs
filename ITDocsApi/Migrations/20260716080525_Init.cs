@@ -27,6 +27,23 @@ namespace ITDocsApi.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Users",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    DisplayName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    PasswordHash = table.Column<byte[]>(type: "bytea", nullable: false),
+                    PasswordSalt = table.Column<byte[]>(type: "bytea", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Users", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Assets",
                 columns: table => new
                 {
@@ -42,8 +59,8 @@ namespace ITDocsApi.Migrations
                     Tags = table.Column<string>(type: "jsonb", nullable: false),
                     Notes = table.Column<string>(type: "text", nullable: false),
                     Serial = table.Column<string>(type: "text", nullable: true),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -69,8 +86,8 @@ namespace ITDocsApi.Migrations
                     Description = table.Column<string>(type: "text", nullable: false),
                     Tags = table.Column<string>(type: "jsonb", nullable: false),
                     Starred = table.Column<bool>(type: "boolean", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -99,8 +116,8 @@ namespace ITDocsApi.Migrations
                     Notes = table.Column<string>(type: "text", nullable: false),
                     Starred = table.Column<bool>(type: "boolean", nullable: false),
                     Status = table.Column<int>(type: "integer", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -151,8 +168,8 @@ namespace ITDocsApi.Migrations
                     LinkedAssets = table.Column<string>(type: "jsonb", nullable: false),
                     Tags = table.Column<string>(type: "jsonb", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -179,8 +196,8 @@ namespace ITDocsApi.Migrations
                     OccurredAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ResolvedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     Tags = table.Column<string>(type: "jsonb", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -204,8 +221,8 @@ namespace ITDocsApi.Migrations
                     Tags = table.Column<string>(type: "jsonb", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Starred = table.Column<bool>(type: "boolean", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -237,8 +254,8 @@ namespace ITDocsApi.Migrations
                     Notes = table.Column<string>(type: "text", nullable: false),
                     Starred = table.Column<bool>(type: "boolean", nullable: false),
                     Status = table.Column<int>(type: "integer", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -265,8 +282,8 @@ namespace ITDocsApi.Migrations
                     Strength = table.Column<int>(type: "integer", nullable: false),
                     Starred = table.Column<bool>(type: "boolean", nullable: false),
                     Notes = table.Column<string>(type: "text", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -291,8 +308,8 @@ namespace ITDocsApi.Migrations
                     TargetDate = table.Column<DateOnly>(type: "date", nullable: false),
                     Tags = table.Column<string>(type: "jsonb", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -317,8 +334,8 @@ namespace ITDocsApi.Migrations
                     Gateway = table.Column<string>(type: "text", nullable: false),
                     Dns = table.Column<string>(type: "text", nullable: false),
                     Description = table.Column<string>(type: "text", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -344,8 +361,8 @@ namespace ITDocsApi.Migrations
                     DueDate = table.Column<DateOnly>(type: "date", nullable: false),
                     Tags = table.Column<string>(type: "jsonb", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -380,8 +397,8 @@ namespace ITDocsApi.Migrations
                     DocumentMimeType = table.Column<string>(type: "text", nullable: true),
                     DocumentSize = table.Column<long>(type: "bigint", nullable: true),
                     DocumentBlobPath = table.Column<string>(type: "text", nullable: true),
-                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -390,6 +407,31 @@ namespace ITDocsApi.Migrations
                         name: "FK_WarrantyItems_Organizations_OrganizationId",
                         column: x => x.OrganizationId,
                         principalTable: "Organizations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserOrganizations",
+                columns: table => new
+                {
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrganizationId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Role = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserOrganizations", x => new { x.UserId, x.OrganizationId });
+                    table.ForeignKey(
+                        name: "FK_UserOrganizations_Organizations_OrganizationId",
+                        column: x => x.OrganizationId,
+                        principalTable: "Organizations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_UserOrganizations_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -533,6 +575,17 @@ namespace ITDocsApi.Migrations
                 column: "OrganizationId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_UserOrganizations_OrganizationId",
+                table: "UserOrganizations",
+                column: "OrganizationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Email",
+                table: "Users",
+                column: "Email",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_WarrantyItems_OrganizationId",
                 table: "WarrantyItems",
                 column: "OrganizationId");
@@ -578,6 +631,9 @@ namespace ITDocsApi.Migrations
                 name: "Tasks");
 
             migrationBuilder.DropTable(
+                name: "UserOrganizations");
+
+            migrationBuilder.DropTable(
                 name: "WarrantyItems");
 
             migrationBuilder.DropTable(
@@ -585,6 +641,9 @@ namespace ITDocsApi.Migrations
 
             migrationBuilder.DropTable(
                 name: "Subnets");
+
+            migrationBuilder.DropTable(
+                name: "Users");
 
             migrationBuilder.DropTable(
                 name: "Organizations");

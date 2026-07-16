@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Server, KeyRound, FileText, CreditCard, ArrowRight, Clock, Star, AlertTriangle, CheckCircle2, Activity, Plus, TrendingUp } from 'lucide-react'
+import { Server, KeyRound, FileText, CreditCard, ArrowRight, Clock, Star, AlertTriangle, CheckCircle2, Activity, Plus, TrendingUp, Loader2 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import type { View } from '../App'
 
@@ -67,35 +67,31 @@ function PulsingDot({ status }: { status: string }) {
   )
 }
 
-const RECENT_DOCS = [
-  { title: 'Network Topology 2024', category: 'Networks', updated: '2h ago', icon: '🗺️' },
-  { title: 'VPN Setup Guide', category: 'Access', updated: '4h ago', icon: '🔐' },
-  { title: 'Firewall Rules — DMZ', category: 'Security', updated: '1d ago', icon: '🛡️' },
-  { title: 'AD Domain Structure', category: 'Active Directory', updated: '2d ago', icon: '🏢' },
-]
-
-const REMINDERS = [
-  { text: 'SSL cert *.corp.local expires', days: 7, level: 'danger' as const },
-  { text: 'Quarterly password audit', days: 14, level: 'warn' as const },
-  { text: 'Windows Server 2022 license renewal', days: 21, level: 'warn' as const },
-  { text: 'VMware vSphere license', days: 45, level: 'ok' as const },
-]
-
 export default function Dashboard({ navigate }: Props) {
-  const { assets, passwords } = useApp()
+  const { assets, passwords, licenses, knowledgeArticles, currentOrg, isLoading } = useApp()
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
+  }
 
   const onlineAssets = assets.filter(a => a.status === 'online').length
-  const expiringLicenses = 2
+  const expiringLicenses = licenses.filter(l => l.status === 'expiring' || l.status === 'expired').length
   const favoriteAssets = assets.filter(a => a.starred).slice(0, 5)
+  const recentDocs = [...knowledgeArticles]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 4)
+  const upcomingLicenses = [...licenses]
+    .filter(l => l.status === 'expiring')
+    .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime())
+    .slice(0, 4)
 
-  const recentActivity = [
-    { icon: <Server size={13} />, color: 'text-blue-400', text: `${assets[0]?.name ?? 'SRV-PROD-01'} status updated`, time: '2h ago', who: 'John Doe' },
-    { icon: <FileText size={13} />, color: 'text-green-400', text: 'Doc "VPN Setup Guide" created', time: '4h ago', who: 'Sarah K.' },
-    { icon: <KeyRound size={13} />, color: 'text-purple-500', text: 'Password "AWS Root" rotated', time: '6h ago', who: 'John Doe' },
-    { icon: <CreditCard size={13} />, color: 'text-orange-400', text: 'License "Windows Server" renewed', time: '1d ago', who: 'Mike T.' },
-    { icon: <Server size={13} />, color: 'text-blue-400', text: `${assets[5]?.name ?? 'FW-EDGE-01'} added`, time: '2d ago', who: 'Sarah K.' },
-    { icon: <FileText size={13} />, color: 'text-green-400', text: 'Doc "Firewall Rules" updated', time: '3d ago', who: 'John Doe' },
-  ]
+  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+
+  const daysUntil = (dateStr: string) => Math.max(0, Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000))
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -103,7 +99,7 @@ export default function Dashboard({ navigate }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-ink-primary">Dashboard</h1>
-          <p className="text-xs text-ink-muted mt-0.5 font-mono">Monday, 07 July 2026 · CORP-DC01</p>
+          <p className="text-xs text-ink-muted mt-0.5 font-mono">{today}{currentOrg ? ` · ${currentOrg.name}` : ''}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-[11px] font-mono text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">
@@ -115,59 +111,37 @@ export default function Dashboard({ navigate }: Props) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div onClick={() => navigate('assets')} className="cursor-pointer">
-          <StatCard icon={<Server size={16} />} label="Total Assets" value={assets.length} sub={`${onlineAssets} online`} color="text-blue-400" trend="+3 this week" />
+          <StatCard icon={<Server size={16} />} label="Total Assets" value={assets.length} sub={`${onlineAssets} online`} color="text-blue-400" />
         </div>
         <div onClick={() => navigate('passwords')} className="cursor-pointer">
           <StatCard icon={<KeyRound size={16} />} label="Password Entries" value={passwords.length} sub="All secured" color="text-purple-500" />
         </div>
         <div onClick={() => navigate('knowledge')} className="cursor-pointer">
-          <StatCard icon={<FileText size={16} />} label="Documents" value={64} sub="4 updated today" color="text-green-400" trend="+2" />
+          <StatCard icon={<FileText size={16} />} label="Documents" value={knowledgeArticles.length} color="text-green-400" />
         </div>
         <div onClick={() => navigate('licenses')} className="cursor-pointer">
-          <StatCard icon={<CreditCard size={16} />} label="Expiring Licenses" value={expiringLicenses} sub="Next 30 days" color="text-orange-400" />
+          <StatCard icon={<CreditCard size={16} />} label="Expiring Licenses" value={expiringLicenses} sub="Next 60 days" color="text-orange-400" />
         </div>
       </div>
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Activity feed */}
-        <div className="lg:col-span-2 bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-edge-subtle">
-            <div className="flex items-center gap-2 text-xs font-semibold text-ink-primary">
-              <Activity size={13} className="text-blue-400" /> Recent Activity
-            </div>
-            <button className="text-[10px] text-ink-link hover:text-blue-300 transition-colors flex items-center gap-1">View all <ArrowRight size={10} /></button>
-          </div>
-          <div className="divide-y divide-edge-subtle">
-            {recentActivity.map((item, i) => (
-              <div key={i} className="flex items-center gap-3 px-5 py-3 hover:bg-navy-700/50 transition-colors group cursor-default">
-                <div className={`w-6 h-6 rounded-md bg-navy-700 flex items-center justify-center flex-shrink-0 ${item.color}`}>{item.icon}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-ink-primary truncate">{item.text}</p>
-                  <p className="text-[10px] text-ink-muted mt-0.5">{item.who}</p>
-                </div>
-                <span className="text-[10px] font-mono text-ink-muted flex-shrink-0">{item.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right column */}
-        <div className="flex flex-col gap-4">
-          {/* Quick actions */}
+        {/* Quick actions + reminders take the activity feed's old spot,
+            since there's no activity-log endpoint yet to back a real feed */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-edge-subtle">
               <span className="text-xs font-semibold text-ink-primary">Quick Actions</span>
             </div>
-            <div className="p-3 grid grid-cols-2 gap-2">
+            <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { label: 'Add Asset', icon: <Server size={14} />, action: () => navigate('assets'), color: 'text-blue-400', bg: 'group-hover:bg-blue-500/10' },
-                { label: 'New Doc', icon: <FileText size={14} />, action: () => navigate('knowledge'), color: 'text-green-400', bg: 'group-hover:bg-green-500/10' },
-                { label: 'Add Password', icon: <KeyRound size={14} />, action: () => navigate('passwords'), color: 'text-purple-500', bg: 'group-hover:bg-purple-500/10' },
-                { label: 'Add License', icon: <CreditCard size={14} />, action: () => navigate('licenses'), color: 'text-orange-400', bg: 'group-hover:bg-orange-500/10' },
+                { label: 'Add Asset', icon: <Server size={14} />, action: () => navigate('assets'), color: 'text-blue-400' },
+                { label: 'New Doc', icon: <FileText size={14} />, action: () => navigate('knowledge'), color: 'text-green-400' },
+                { label: 'Add Password', icon: <KeyRound size={14} />, action: () => navigate('passwords'), color: 'text-purple-500' },
+                { label: 'Add License', icon: <CreditCard size={14} />, action: () => navigate('licenses'), color: 'text-orange-400' },
               ].map((a, i) => (
                 <button key={i} onClick={a.action}
-                  className={`group flex items-center gap-2 px-3 py-2.5 rounded-lg bg-navy-700 hover:bg-navy-600 border border-edge-subtle hover:border-edge-default transition-all text-xs text-ink-secondary hover:text-ink-primary active:scale-95`}>
+                  className="group flex items-center gap-2 px-3 py-2.5 rounded-lg bg-navy-700 hover:bg-navy-600 border border-edge-subtle hover:border-edge-default transition-all text-xs text-ink-secondary hover:text-ink-primary active:scale-95">
                   <span className={a.color}><Plus size={12} /></span>
                   <span className={`${a.color} flex-shrink-0`}>{a.icon}</span>
                   <span>{a.label}</span>
@@ -176,27 +150,35 @@ export default function Dashboard({ navigate }: Props) {
             </div>
           </div>
 
-          {/* Reminders */}
+          {/* Reminders — driven by real license expiry now */}
           <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-edge-subtle flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-semibold text-ink-primary">
-                <Clock size={13} className="text-orange-400" /> Upcoming Reminders
+                <Clock size={13} className="text-orange-400" /> Upcoming Renewals
               </div>
               <span className="text-[10px] font-mono bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1.5 py-0.5 rounded-full">
-                {REMINDERS.filter(r => r.level !== 'ok').length} pending
+                {upcomingLicenses.length} pending
               </span>
             </div>
-            <div className="divide-y divide-edge-subtle">
-              {REMINDERS.map((r, i) => (
-                <div key={i} className="flex items-center gap-3 px-5 py-2.5 hover:bg-navy-700/50 transition-colors cursor-default">
-                  {r.level === 'danger' ? <AlertTriangle size={12} className="text-red-400 flex-shrink-0" />
-                    : r.level === 'warn' ? <AlertTriangle size={12} className="text-orange-400 flex-shrink-0" />
-                    : <CheckCircle2 size={12} className="text-green-400 flex-shrink-0" />}
-                  <p className="flex-1 text-[11px] text-ink-secondary truncate">{r.text}</p>
-                  <span className={`text-[10px] font-mono flex-shrink-0 ${r.level === 'danger' ? 'text-red-400' : r.level === 'warn' ? 'text-orange-400' : 'text-green-400'}`}>{r.days}d</span>
-                </div>
-              ))}
-            </div>
+            {upcomingLicenses.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <CheckCircle2 size={18} className="text-green-400 mx-auto mb-2 opacity-60" />
+                <p className="text-xs text-ink-muted">Nothing expiring soon</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-edge-subtle">
+                {upcomingLicenses.map(l => {
+                  const days = daysUntil(l.expiryDate)
+                  return (
+                    <button key={l.id} onClick={() => navigate('licenses')} className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-navy-700/50 transition-colors text-left">
+                      <AlertTriangle size={12} className={days <= 14 ? 'text-red-400 flex-shrink-0' : 'text-orange-400 flex-shrink-0'} />
+                      <p className="flex-1 text-[11px] text-ink-secondary truncate">{l.name} · {l.vendor}</p>
+                      <span className={`text-[10px] font-mono flex-shrink-0 ${days <= 14 ? 'text-red-400' : 'text-orange-400'}`}>{days}d</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -206,22 +188,30 @@ export default function Dashboard({ navigate }: Props) {
             <div className="flex items-center gap-2 text-xs font-semibold text-ink-primary"><FileText size={13} className="text-green-400" /> Recent Documents</div>
             <button onClick={() => navigate('knowledge')} className="text-[10px] text-ink-link hover:text-blue-300 transition-colors flex items-center gap-1">View all <ArrowRight size={10} /></button>
           </div>
-          <div className="divide-y divide-edge-subtle">
-            {RECENT_DOCS.map((doc, i) => (
-              <button key={i} onClick={() => navigate('knowledge')} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-navy-700/50 transition-colors text-left group">
-                <span className="text-base flex-shrink-0">{doc.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-ink-primary truncate group-hover:text-blue-300 transition-colors">{doc.title}</p>
-                  <p className="text-[10px] text-ink-muted mt-0.5">{doc.category}</p>
-                </div>
-                <span className="text-[10px] font-mono text-ink-muted flex-shrink-0">{doc.updated}</span>
-              </button>
-            ))}
-          </div>
+          {recentDocs.length === 0 ? (
+            <div className="px-5 py-8 text-center">
+              <FileText size={20} className="text-ink-muted mx-auto mb-2 opacity-40" />
+              <p className="text-xs text-ink-muted">No documents yet</p>
+              <button onClick={() => navigate('knowledge')} className="text-[10px] text-blue-400 hover:text-blue-300 mt-2 transition-colors">Write the first one →</button>
+            </div>
+          ) : (
+            <div className="divide-y divide-edge-subtle">
+              {recentDocs.map(doc => (
+                <button key={doc.id} onClick={() => navigate('knowledge')} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-navy-700/50 transition-colors text-left group">
+                  <FileText size={14} className="text-green-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-ink-primary truncate group-hover:text-blue-300 transition-colors">{doc.title}</p>
+                    <p className="text-[10px] text-ink-muted mt-0.5">{doc.category}</p>
+                  </div>
+                  <span className="text-[10px] font-mono text-ink-muted flex-shrink-0">{new Date(doc.updatedAt).toLocaleDateString()}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Favorite assets */}
-        <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
+        <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden lg:col-span-1">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-edge-subtle">
             <div className="flex items-center gap-2 text-xs font-semibold text-ink-primary"><Star size={13} className="text-yellow-400 fill-yellow-400" /> Favorite Assets</div>
             <button onClick={() => navigate('assets')} className="text-[10px] text-ink-link hover:text-blue-300 transition-colors flex items-center gap-1">All <ArrowRight size={10} /></button>
@@ -234,8 +224,8 @@ export default function Dashboard({ navigate }: Props) {
             </div>
           ) : (
             <div className="divide-y divide-edge-subtle">
-              {favoriteAssets.map((asset, i) => (
-                <button key={i} onClick={() => navigate('asset-detail', asset.id)}
+              {favoriteAssets.map(asset => (
+                <button key={asset.id} onClick={() => navigate('asset-detail', asset.id)}
                   className="w-full flex items-center gap-3 px-5 py-3 hover:bg-navy-700/50 transition-colors text-left group">
                   <PulsingDot status={asset.status} />
                   <div className="flex-1 min-w-0">

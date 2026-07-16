@@ -220,6 +220,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
 
             var filter = buildFilter.MakeGenericMethod(entityType.ClrType).Invoke(this, null);
             b.Entity(entityType.ClrType).HasQueryFilter((LambdaExpression)filter!);
+            
+            b.Entity(entityType.ClrType)
+                .Property<uint>("xmin")
+                .HasColumnName("xmin")
+                .HasColumnType("xid")
+                .ValueGeneratedOnAddOrUpdate()
+                .IsConcurrencyToken();
         }
     }
 

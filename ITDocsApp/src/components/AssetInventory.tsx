@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Plus, Search, Filter, ChevronUp, ChevronDown, ChevronsUpDown,
   Edit2, Trash2, Eye, Server, Monitor, Router, HardDrive, Wifi,
-  ChevronLeft, ChevronRight, Star, X, Printer, Phone,
+  ChevronLeft, ChevronRight, Star, X, Printer, Phone, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Asset, AssetType, AssetStatus } from '../context/AuthContext'
+import type { Asset, AssetType, AssetStatus } from '../api/types'
 import type { View } from '../App'
 
 const TYPE_ICONS: Record<AssetType, React.ReactNode> = {
@@ -37,7 +37,7 @@ function StatusBadge({ status }: { status: AssetStatus }) {
 
 interface AssetFormProps {
   initial?: Asset
-  onSave: (data: Omit<Asset, 'id' | 'updated'>) => void
+  onSave: (data: Omit<Asset, 'id' | 'updated'>) => Promise<void>
   onClose: () => void
 }
 
@@ -56,15 +56,16 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
   })
   const [tagInput, setTagInput] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
   const firstRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { firstRef.current?.focus() }, [])
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) onClose() }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [onClose, submitting])
 
   const set = (k: string, v: unknown) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
 
@@ -84,10 +85,22 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = () => { if (validate()) onSave(form) }
+  // Stays open on failure — the error toast (fired by AppProvider's `guarded`
+  // wrapper) tells the user what happened, and their input isn't lost.
+  const handleSubmit = async () => {
+    if (!validate() || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave(form)
+    } catch {
+      // error toast already shown by context; keep modal open so nothing is lost
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
@@ -100,7 +113,7 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Asset' : 'Add New Asset'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">{initial ? `Editing ${initial.name}` : 'Register a new infrastructure asset'}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={15} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={15} /></button>
         </div>
 
         {/* Body */}
@@ -108,22 +121,22 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <Field label="Asset Name *" error={errors.name}>
               <input ref={firstRef} value={form.name} onChange={e => set('name', e.target.value)}
-                placeholder="e.g. SRV-PROD-03" className={input(errors.name)} />
+                placeholder="e.g. SRV-PROD-03" className={input(errors.name)} disabled={submitting} />
             </Field>
             <Field label="IP Address" error={errors.ip}>
               <input value={form.ip} onChange={e => set('ip', e.target.value)}
-                placeholder="e.g. 10.0.1.12" className={input(errors.ip)} />
+                placeholder="e.g. 10.0.1.12" className={input(errors.ip)} disabled={submitting} />
             </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Type">
-              <select value={form.type} onChange={e => set('type', e.target.value)} className={input()}>
+              <select value={form.type} onChange={e => set('type', e.target.value)} className={input()} disabled={submitting}>
                 {ASSET_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
             </Field>
             <Field label="Status">
-              <select value={form.status} onChange={e => set('status', e.target.value)} className={input()}>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={input()} disabled={submitting}>
                 {ASSET_STATUSES.map(s => <option key={s}>{s}</option>)}
               </select>
             </Field>
@@ -132,17 +145,17 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <Field label="Location *" error={errors.location}>
               <input value={form.location} onChange={e => set('location', e.target.value)}
-                placeholder="e.g. DC-RACK-A1" className={input(errors.location)} />
+                placeholder="e.g. DC-RACK-A1" className={input(errors.location)} disabled={submitting} />
             </Field>
             <Field label="Owner *" error={errors.owner}>
               <input value={form.owner} onChange={e => set('owner', e.target.value)}
-                placeholder="e.g. John Doe" className={input(errors.owner)} />
+                placeholder="e.g. John Doe" className={input(errors.owner)} disabled={submitting} />
             </Field>
           </div>
 
           <Field label="Serial Number">
             <input value={form.serial} onChange={e => set('serial', e.target.value)}
-              placeholder="e.g. BCZK1234567" className={input() + ' font-mono'} />
+              placeholder="e.g. BCZK1234567" className={input() + ' font-mono'} disabled={submitting} />
           </Field>
 
           <Field label="Tags">
@@ -150,37 +163,38 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
               {form.tags.map(t => (
                 <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-navy-700 border border-edge-subtle text-[11px] text-ink-secondary font-mono">
                   {t}
-                  <button type="button" onClick={() => set('tags', form.tags.filter(x => x !== t))} className="text-ink-muted hover:text-red-400 transition-colors ml-0.5">×</button>
+                  <button type="button" onClick={() => set('tags', form.tags.filter(x => x !== t))} className="text-ink-muted hover:text-red-400 transition-colors ml-0.5" disabled={submitting}>×</button>
                 </span>
               ))}
             </div>
             <div className="flex gap-2">
               <input value={tagInput} onChange={e => setTagInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="Add tag and press Enter" className={input() + ' flex-1'} />
-              <button type="button" onClick={addTag} className="px-3 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs hover:bg-navy-600 transition-colors">Add</button>
+                placeholder="Add tag and press Enter" className={input() + ' flex-1'} disabled={submitting} />
+              <button type="button" onClick={addTag} disabled={submitting} className="px-3 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs hover:bg-navy-600 transition-colors disabled:opacity-40">Add</button>
             </div>
           </Field>
 
           <Field label="Notes">
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
               placeholder="Any relevant notes…" rows={3}
-              className={input() + ' resize-none leading-relaxed'} />
+              className={input() + ' resize-none leading-relaxed'} disabled={submitting} />
           </Field>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/50">
           <label className="flex items-center gap-2 cursor-pointer">
-            <div onClick={() => set('starred', !form.starred)} className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-all ${form.starred ? 'bg-yellow-500/20 border-yellow-500/50' : 'border-edge-strong'}`}>
+            <div onClick={() => !submitting && set('starred', !form.starred)} className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-all ${form.starred ? 'bg-yellow-500/20 border-yellow-500/50' : 'border-edge-strong'}`}>
               {form.starred && <Star size={10} className="text-yellow-400 fill-yellow-400" />}
             </div>
             <span className="text-xs text-ink-secondary">Add to favorites</span>
           </label>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-            <button onClick={handleSubmit} className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
-              {initial ? 'Save Changes' : 'Create Asset'}
+            <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-4 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+            <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all disabled:opacity-60 flex items-center gap-1.5" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
+              {submitting && <Loader2 size={12} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Create Asset'}
             </button>
           </div>
         </div>
@@ -191,15 +205,28 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
 
 // ─── Delete confirm dialog ─────────────────────────────────────────────────────
 
-function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
+function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm: () => Promise<void>; onCancel: () => void }) {
+  const [deleting, setDeleting] = useState(false)
+
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); if (e.key === 'Enter') onConfirm() }
+    const h = (e: KeyboardEvent) => { if (deleting) return; if (e.key === 'Escape') onCancel(); if (e.key === 'Enter') handleConfirm() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [onConfirm, onCancel])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onConfirm, onCancel, deleting])
+
+  const handleConfirm = async () => {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      await onConfirm()
+    } catch {
+      setDeleting(false) // stay open so the user can retry or cancel
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !deleting && onCancel()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-red-500/30 rounded-2xl shadow-2xl w-full max-w-sm p-6" style={{ animation: 'modalIn 0.15s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto mb-4">
@@ -208,8 +235,11 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
         <h3 className="text-sm font-semibold text-ink-primary text-center mb-1">Delete Asset</h3>
         <p className="text-xs text-ink-muted text-center mb-5">Are you sure you want to delete <span className="text-ink-primary font-mono">{name}</span>? This cannot be undone.</p>
         <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-          <button onClick={onConfirm} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors">Delete</button>
+          <button onClick={onCancel} disabled={deleting} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+          <button onClick={handleConfirm} disabled={deleting} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+            {deleting && <Loader2 size={12} className="animate-spin" />}
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
         </div>
       </div>
     </div>
@@ -229,7 +259,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function input(error?: string) {
-  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 }
 
 type SortKey = keyof Asset
@@ -240,7 +270,7 @@ interface Props { navigate: (v: View, id?: string) => void }
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function AssetInventory({ navigate }: Props) {
-  const { assets, addAsset, updateAsset, deleteAsset, toggleStarAsset } = useApp()
+  const { assets, isLoading, addAsset, updateAsset, deleteAsset, toggleStarAsset } = useApp()
 
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
@@ -252,6 +282,7 @@ export default function AssetInventory({ navigate }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [editAsset, setEditAsset] = useState<Asset | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const PER_PAGE = 8
 
   const filtered = assets
@@ -275,6 +306,23 @@ export default function AssetInventory({ navigate }: Props) {
   const allSelected = paged.length > 0 && paged.every(a => selected.has(a.id))
 
   const onlineCount = assets.filter(a => a.status === 'online').length
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true)
+    // Settle all deletes even if some fail — a failed one keeps its row,
+    // rather than one rejection aborting the whole batch silently.
+    await Promise.allSettled(Array.from(selected).map(id => deleteAsset(id)))
+    setSelected(new Set())
+    setBulkDeleting(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
+  }
 
   return (
     <div className="p-6">
@@ -323,9 +371,10 @@ export default function AssetInventory({ navigate }: Props) {
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs text-ink-muted font-mono">{selected.size} selected</span>
             <button
-              onClick={() => { selected.forEach(id => deleteAsset(id)); setSelected(new Set()) }}
-              className="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs hover:bg-red-500/20 border border-red-500/20 transition-colors flex items-center gap-1.5">
-              <Trash2 size={12} /> Delete selected
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs hover:bg-red-500/20 border border-red-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-50">
+              {bulkDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete selected
             </button>
           </div>
         )}
@@ -462,9 +511,26 @@ export default function AssetInventory({ navigate }: Props) {
       </div>
 
       {/* Modals */}
-      {addOpen && <AssetForm onSave={data => { addAsset(data); setAddOpen(false) }} onClose={() => setAddOpen(false)} />}
-      {editAsset && <AssetForm initial={editAsset} onSave={data => { updateAsset({ ...editAsset, ...data }); setEditAsset(null) }} onClose={() => setEditAsset(null)} />}
-      {deleteTarget && <DeleteConfirm name={deleteTarget.name} onConfirm={() => { deleteAsset(deleteTarget.id); setDeleteTarget(null) }} onCancel={() => setDeleteTarget(null)} />}
+      {addOpen && (
+        <AssetForm
+          onSave={async data => { await addAsset(data); setAddOpen(false) }}
+          onClose={() => setAddOpen(false)}
+        />
+      )}
+      {editAsset && (
+        <AssetForm
+          initial={editAsset}
+          onSave={async data => { await updateAsset({ ...editAsset, ...data }); setEditAsset(null) }}
+          onClose={() => setEditAsset(null)}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteConfirm
+          name={deleteTarget.name}
+          onConfirm={async () => { await deleteAsset(deleteTarget.id); setDeleteTarget(null) }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   )
 }

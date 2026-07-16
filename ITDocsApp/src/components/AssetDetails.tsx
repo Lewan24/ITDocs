@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Edit2, Star, MoreHorizontal, Server, MapPin, User, Clock, HardDrive, Network, Tag, FileText, History, Link2, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Edit2, Star, MoreHorizontal, Server, MapPin, User, Clock, HardDrive, Network, Tag, FileText, History, Link2, Trash2, X, Loader2 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import type { View } from '../App'
 
@@ -14,18 +14,29 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 }
 
 export default function AssetDetails({ assetId, navigate }: Props) {
-  const { assets, updateAsset, deleteAsset, toggleStarAsset } = useApp()
-  const asset = assets.find(a => a.id === assetId) ?? assets[0]
+  const { assets, isLoading, updateAsset, deleteAsset, toggleStarAsset } = useApp()
+  const asset = assets.find(a => a.id === assetId)
 
   const [tab, setTab] = useState<Tab>('overview')
   const [moreOpen, setMoreOpen] = useState(false)
   const [editNotes, setEditNotes] = useState(false)
-  const [notes, setNotes] = useState(asset?.notes ?? '')
+  const [notes, setNotes] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
+  }
 
   if (!asset) return (
-    <div className="flex items-center justify-center h-full">
+    <div className="flex flex-col items-center justify-center h-full gap-3">
       <p className="text-ink-muted text-sm">Asset not found</p>
+      <button onClick={() => navigate('assets')} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">← Back to Assets</button>
     </div>
   )
 
@@ -36,9 +47,24 @@ export default function AssetDetails({ assetId, navigate }: Props) {
     unknown: 'bg-navy-500/20 text-ink-muted border-edge-default',
   }
 
-  const saveNotes = () => {
-    updateAsset({ ...asset, notes })
-    setEditNotes(false)
+  const saveNotes = async () => {
+    setSavingNotes(true)
+    try {
+      await updateAsset({ ...asset, notes })
+      setEditNotes(false)
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await deleteAsset(asset.id)
+      navigate('assets')
+    } catch {
+      setDeleting(false)
+    }
   }
 
   const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -154,14 +180,17 @@ export default function AssetDetails({ assetId, navigate }: Props) {
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => setEditNotes(false)} className="text-[10px] text-ink-muted hover:text-ink-primary transition-colors flex items-center gap-1"><X size={10} /> Cancel</button>
-                    <button onClick={saveNotes} className="text-[10px] text-green-400 hover:text-green-300 transition-colors font-medium">Save</button>
+                    <button onClick={() => setEditNotes(false)} disabled={savingNotes} className="text-[10px] text-ink-muted hover:text-ink-primary transition-colors flex items-center gap-1 disabled:opacity-40"><X size={10} /> Cancel</button>
+                    <button onClick={saveNotes} disabled={savingNotes} className="text-[10px] text-green-400 hover:text-green-300 transition-colors font-medium flex items-center gap-1 disabled:opacity-60">
+                      {savingNotes && <Loader2 size={10} className="animate-spin" />}
+                      {savingNotes ? 'Saving…' : 'Save'}
+                    </button>
                   </div>
                 )}
               </div>
               {editNotes ? (
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4}
-                  className="w-full px-3 py-2.5 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs leading-relaxed focus:border-blue-500 focus:outline-none resize-none transition-colors" />
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} disabled={savingNotes}
+                  className="w-full px-3 py-2.5 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs leading-relaxed focus:border-blue-500 focus:outline-none resize-none transition-colors disabled:opacity-60" />
               ) : (
                 <p className="text-xs text-ink-secondary leading-relaxed">
                   {asset.notes || <span className="text-ink-muted italic">No notes yet. Click Edit to add some.</span>}
@@ -213,37 +242,27 @@ export default function AssetDetails({ assetId, navigate }: Props) {
 
       {tab === 'history' && (
         <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
-          <div className="divide-y divide-edge-subtle">
-            {[
-              { action: `Asset status: ${asset.status}`, who: 'System', when: '2026-07-07 08:00', type: 'status' },
-              { action: 'Notes updated', who: asset.owner, when: '2026-06-15 14:32', type: 'change' },
-              { action: `Asset created as ${asset.type}`, who: asset.owner, when: '2022-03-15 10:30', type: 'create' },
-            ].map((h, i) => (
-              <div key={i} className="flex items-start gap-4 px-5 py-3.5 hover:bg-navy-700/50 transition-colors">
-                <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${h.type === 'create' ? 'bg-green-400' : h.type === 'status' ? 'bg-blue-400' : 'bg-orange-400'}`} />
-                <div className="flex-1"><p className="text-xs text-ink-primary">{h.action}</p><p className="text-[10px] text-ink-muted mt-0.5">by {h.who}</p></div>
-                <span className="text-[10px] font-mono text-ink-muted flex-shrink-0">{h.when}</span>
-              </div>
-            ))}
+          <div className="px-5 py-8 text-center">
+            <History size={20} className="text-ink-muted mx-auto mb-2 opacity-40" />
+            <p className="text-xs text-ink-muted">Activity history isn't tracked yet.</p>
+            <p className="text-[10px] text-ink-muted mt-1">This asset was last updated {asset.updated}.</p>
           </div>
         </div>
       )}
 
       {tab === 'docs' && (
-        <div className="space-y-3">
-          {['Server Initial Setup Guide', 'VM Deployment Runbook', 'Maintenance Procedure'].map((title, i) => (
-            <button key={i} onClick={() => navigate('knowledge')} className="w-full flex items-center gap-4 bg-navy-800 border border-edge-subtle rounded-xl px-5 py-4 hover:border-edge-default cursor-pointer transition-colors">
-              <FileText size={16} className="text-green-400 flex-shrink-0" />
-              <div className="flex-1 text-left"><p className="text-sm font-medium text-ink-primary">{title}</p><p className="text-xs text-ink-muted mt-0.5">Updated 2026-06 · {asset.owner}</p></div>
-              <ArrowLeft size={13} className="text-ink-muted rotate-180" />
-            </button>
-          ))}
+        <div className="px-5 py-12 text-center">
+          <FileText size={20} className="text-ink-muted mx-auto mb-2 opacity-40" />
+          <p className="text-xs text-ink-muted">No documentation linked to this asset yet.</p>
+          <button onClick={() => navigate('knowledge')} className="text-[10px] text-blue-400 hover:text-blue-300 mt-2 transition-colors">Browse knowledge base →</button>
         </div>
       )}
 
       {tab === 'related' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {assets.filter(a => a.id !== asset.id).slice(0, 6).map((r, i) => (
+          {assets.filter(a => a.id !== asset.id).length === 0 ? (
+            <p className="text-xs text-ink-muted col-span-full text-center py-8">No other assets to relate.</p>
+          ) : assets.filter(a => a.id !== asset.id).slice(0, 6).map((r, i) => (
             <button key={i} onClick={() => navigate('asset-detail')} className="bg-navy-800 border border-edge-subtle rounded-xl p-4 hover:border-edge-default transition-colors text-left">
               <div className="flex items-center gap-2 mb-2">
                 <span className="font-mono text-sm text-ink-link">{r.name}</span>
@@ -257,15 +276,18 @@ export default function AssetDetails({ assetId, navigate }: Props) {
 
       {/* Delete confirm */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmDelete(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => !deleting && setConfirmDelete(false)}>
           <div className="relative bg-navy-800 border border-red-500/30 rounded-2xl shadow-2xl w-full max-w-sm p-6" style={{ animation: 'modalIn 0.15s ease-out' }} onClick={e => e.stopPropagation()}>
             <style>{`@keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(4px); } to { opacity:1; transform:scale(1) translateY(0); } }`}</style>
             <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto mb-4"><Trash2 size={18} className="text-red-400" /></div>
             <h3 className="text-sm font-semibold text-ink-primary text-center mb-1">Delete Asset</h3>
             <p className="text-xs text-ink-muted text-center mb-5">Delete <span className="text-ink-primary font-mono">{asset.name}</span>? This cannot be undone.</p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-              <button onClick={() => { deleteAsset(asset.id); navigate('assets') }} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors">Delete</button>
+              <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+                {deleting && <Loader2 size={12} className="animate-spin" />}
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>
