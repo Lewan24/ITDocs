@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Search, Plus, Eye, EyeOff, Copy, Tag, KeyRound, Clock,
-  Edit2, Star, X, Trash2, RefreshCw, Shield, ChevronDown, ArrowLeft,
+  Edit2, Star, X, Trash2, RefreshCw, Shield, ChevronDown, ArrowLeft, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { PasswordEntry } from '../context/AuthContext'
+import type { PasswordEntry } from '../api/types'
 
 const CATEGORIES = ['All', 'Cloud', 'Hypervisor', 'Network', 'Active Directory', 'Storage', 'Database', 'Application', 'Other']
 const CATEGORY_LIST = CATEGORIES.slice(1)
@@ -21,15 +21,27 @@ function generatePassword(len = 20): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(len))).map(b => chars[b % chars.length]).join('')
 }
 
+function calcStrength(pw: string) {
+  return pw.length >= 16 && /[A-Z]/.test(pw) && /[0-9]/.test(pw) && /[^A-Za-z0-9]/.test(pw) ? 'strong' : pw.length >= 10 ? 'medium' : 'weak'
+}
+
+function inp(error?: string) {
+  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+}
+
 // ─── Password Form Modal ───────────────────────────────────────────────────────
 
-interface PwFormProps { initial?: PasswordEntry; onSave: (d: Omit<PasswordEntry, 'id' | 'updated' | 'strength'>) => void; onClose: () => void }
+interface PwFormProps {
+  initial?: PasswordEntry
+  onSave: (d: Omit<PasswordEntry, 'id' | 'updated' | 'strength'> & { password?: string }) => Promise<void>
+  onClose: () => void
+}
 
 function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
     username: initial?.username ?? '',
-    password: initial?.password ?? '',
+    password: '', // never pre-filled — the backend doesn't return stored secrets in list/edit views
     category: initial?.category ?? 'Other',
     tags: initial?.tags ?? [],
     starred: initial?.starred ?? false,
@@ -38,13 +50,14 @@ function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
   const [showPw, setShowPw] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
   const firstRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { firstRef.current?.focus() }, [])
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) onClose() }
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
-  }, [onClose])
+  }, [onClose, submitting])
 
   const set = (k: string, v: unknown) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
   const addTag = () => { const t = tagInput.trim().toLowerCase(); if (t && !form.tags.includes(t)) set('tags', [...form.tags, t]); setTagInput('') }
@@ -53,15 +66,34 @@ function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
     const e: Record<string, string> = {}
     if (!form.name.trim()) e.name = 'Required'
     if (!form.username.trim()) e.username = 'Required'
-    if (!form.password) e.password = 'Required'
+    // Password is required on create, optional on edit — leaving it blank
+    // while editing keeps the existing stored credential unchanged.
+    if (!initial && !form.password) e.password = 'Required'
     setErrors(e); return Object.keys(e).length === 0
   }
 
-  const calcStrength = (pw: string) => pw.length >= 16 && /[A-Z]/.test(pw) && /[0-9]/.test(pw) && /[^A-Za-z0-9]/.test(pw) ? 'strong' : pw.length >= 10 ? 'medium' : 'weak'
   const strength = form.password ? calcStrength(form.password) : null
 
+  const handleSubmit = async () => {
+    if (!validate() || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        name: form.name,
+        username: form.username,
+        category: form.category,
+        tags: form.tags,
+        starred: form.starred,
+        notes: form.notes,
+        ...(form.password ? { password: form.password } : {}),
+      })
+    } catch {
+      setSubmitting(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle">
@@ -69,35 +101,37 @@ function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Password' : 'Add Password Entry'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">{initial ? `Editing ${initial.name}` : 'Store a new credential securely'}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={15} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={15} /></button>
         </div>
 
         <div className="px-5 py-4 space-y-3.5 max-h-[65vh] overflow-y-auto">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Name *</label>
             <input ref={firstRef} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. AWS Root Account"
-              className={inp(errors.name)} />
+              className={inp(errors.name)} disabled={submitting} />
             {errors.name && <p className="text-[10px] text-red-400 mt-1">{errors.name}</p>}
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Username *</label>
             <input value={form.username} onChange={e => set('username', e.target.value)} placeholder="e.g. admin@corp.com"
-              className={inp(errors.username) + ' font-mono'} />
+              className={inp(errors.username) + ' font-mono'} disabled={submitting} />
             {errors.username && <p className="text-[10px] text-red-400 mt-1">{errors.username}</p>}
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-medium text-ink-secondary">Password *</label>
-              <button type="button" onClick={() => set('password', generatePassword())}
-                className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
+              <label className="text-[11px] font-medium text-ink-secondary">
+                Password {initial ? '' : '*'}
+              </label>
+              <button type="button" onClick={() => set('password', generatePassword())} disabled={submitting}
+                className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-40">
                 <RefreshCw size={10} /> Generate
               </button>
             </div>
             <div className="relative">
               <input type={showPw ? 'text' : 'password'} value={form.password} onChange={e => set('password', e.target.value)}
-                placeholder="Enter or generate a password"
-                className={inp(errors.password) + ' font-mono pr-10'} />
-              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-secondary transition-colors">
+                placeholder={initial ? 'Leave blank to keep current password' : 'Enter or generate a password'}
+                className={inp(errors.password) + ' font-mono pr-10'} disabled={submitting} />
+              <button type="button" onClick={() => setShowPw(!showPw)} disabled={submitting} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-secondary transition-colors disabled:opacity-40">
                 {showPw ? <EyeOff size={13} /> : <Eye size={13} />}
               </button>
             </div>
@@ -109,12 +143,15 @@ function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
                 <span className={`text-[10px] font-mono ${strength === 'strong' ? 'text-green-400' : strength === 'medium' ? 'text-orange-400' : 'text-red-400'}`}>{strength}</span>
               </div>
             )}
+            {initial && !form.password && (
+              <p className="text-[10px] text-ink-muted mt-1.5">Current strength: <span className={STRENGTH_STYLES[initial.strength].split(' ')[0]}>{initial.strength}</span></p>
+            )}
             {errors.password && <p className="text-[10px] text-red-400 mt-1">{errors.password}</p>}
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Category</label>
             <div className="relative">
-              <select value={form.category} onChange={e => set('category', e.target.value)} className={inp() + ' appearance-none pr-8'}>
+              <select value={form.category} onChange={e => set('category', e.target.value)} className={inp() + ' appearance-none pr-8'} disabled={submitting}>
                 {CATEGORY_LIST.map(c => <option key={c}>{c}</option>)}
               </select>
               <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
@@ -125,44 +162,41 @@ function PasswordForm({ initial, onSave, onClose }: PwFormProps) {
             <div className="flex flex-wrap gap-1.5 mb-2">
               {form.tags.map(t => (
                 <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-navy-700 border border-edge-subtle text-[11px] text-ink-secondary font-mono">
-                  {t}<button type="button" onClick={() => set('tags', form.tags.filter(x => x !== t))} className="text-ink-muted hover:text-red-400 transition-colors ml-0.5">×</button>
+                  {t}<button type="button" onClick={() => set('tags', form.tags.filter(x => x !== t))} disabled={submitting} className="text-ink-muted hover:text-red-400 transition-colors ml-0.5">×</button>
                 </span>
               ))}
             </div>
             <div className="flex gap-2">
               <input value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="Add tag…" className={inp() + ' flex-1'} />
-              <button type="button" onClick={addTag} className="px-3 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs hover:bg-navy-600 transition-colors"><Tag size={11} /></button>
+                placeholder="Add tag…" className={inp() + ' flex-1'} disabled={submitting} />
+              <button type="button" onClick={addTag} disabled={submitting} className="px-3 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs hover:bg-navy-600 transition-colors disabled:opacity-40"><Tag size={11} /></button>
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any notes…"
-              className={inp() + ' resize-none leading-relaxed'} />
+              className={inp() + ' resize-none leading-relaxed'} disabled={submitting} />
           </div>
         </div>
 
         <div className="flex items-center justify-between px-5 py-4 border-t border-edge-subtle bg-navy-900/50">
           <label className="flex items-center gap-2 cursor-pointer">
-            <div onClick={() => set('starred', !form.starred)} className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-all ${form.starred ? 'bg-yellow-500/20 border-yellow-500/50' : 'border-edge-strong'}`}>
+            <div onClick={() => !submitting && set('starred', !form.starred)} className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-all ${form.starred ? 'bg-yellow-500/20 border-yellow-500/50' : 'border-edge-strong'}`}>
               {form.starred && <Star size={10} className="text-yellow-400 fill-yellow-400" />}
             </div>
             <span className="text-xs text-ink-secondary">Add to favorites</span>
           </label>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-3.5 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-            <button onClick={() => { if (validate()) onSave(form) }} className="px-3.5 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
-              {initial ? 'Save Changes' : 'Save Entry'}
+            <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-3.5 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+            <button onClick={handleSubmit} disabled={submitting} className="px-3.5 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all disabled:opacity-60 flex items-center gap-1.5" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
+              {submitting && <Loader2 size={12} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Save Entry'}
             </button>
           </div>
         </div>
       </div>
     </div>
   )
-}
-
-function inp(error?: string) {
-  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 }
 
 // ─── Detail Panel ─────────────────────────────────────────────────────────────
@@ -173,19 +207,47 @@ function PasswordDetail({ selected, onBack, onEdit, onDelete }: {
   onEdit: () => void
   onDelete: () => void
 }) {
-  const { toggleStarPassword } = useApp()
-  const [revealed, setRevealed] = useState(false)
+  const { toggleStarPassword, revealPassword } = useApp()
+  const [revealedValue, setRevealedValue] = useState<string | null>(null)
+  const [revealing, setRevealing] = useState(false)
   const [copied, setCopied] = useState<'user' | 'pass' | null>(null)
 
-  const copy = (text: string, which: 'user' | 'pass') => {
+  // Fresh entry selected — drop any previously revealed secret from state
+  // rather than letting a stale password linger for the wrong row.
+  useEffect(() => { setRevealedValue(null) }, [selected.id])
+
+  const ensureRevealed = async (): Promise<string | null> => {
+    if (revealedValue !== null) return revealedValue
+    setRevealing(true)
+    try {
+      const value = await revealPassword(selected.id)
+      setRevealedValue(value)
+      return value
+    } catch {
+      return null
+    } finally {
+      setRevealing(false)
+    }
+  }
+
+  const toggleReveal = async () => {
+    if (revealedValue !== null) { setRevealedValue(null); return }
+    await ensureRevealed()
+  }
+
+  const copy = async (text: string, which: 'user' | 'pass') => {
     navigator.clipboard?.writeText(text).catch(() => {})
     setCopied(which)
     setTimeout(() => setCopied(null), 1800)
   }
 
+  const copyPassword = async () => {
+    const value = await ensureRevealed()
+    if (value) copy(value, 'pass')
+  }
+
   return (
     <div className="p-4 sm:p-6 max-w-2xl">
-      {/* Mobile back button */}
       {onBack && (
         <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink-primary transition-colors mb-4">
           <ArrowLeft size={13} /> Back to list
@@ -239,14 +301,14 @@ function PasswordDetail({ selected, onBack, onEdit, onDelete }: {
           <label className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">Password</label>
           <div className="flex items-center gap-2 mt-1.5">
             <div className="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-navy-700 border border-edge-default font-mono text-xs sm:text-sm text-ink-primary tracking-widest truncate">
-              {revealed ? selected.password : '•'.repeat(Math.min(selected.password.length, 20))}
+              {revealing ? <Loader2 size={13} className="animate-spin text-ink-muted" /> : revealedValue !== null ? revealedValue : '•'.repeat(16)}
             </div>
-            <button onClick={() => setRevealed(!revealed)} title={revealed ? 'Hide' : 'Reveal'}
-              className={`p-2.5 rounded-lg border flex-shrink-0 transition-all ${revealed ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-navy-700 border-edge-default text-ink-muted hover:text-ink-primary'}`}>
-              {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
+            <button onClick={toggleReveal} disabled={revealing} title={revealedValue !== null ? 'Hide' : 'Reveal'}
+              className={`p-2.5 rounded-lg border flex-shrink-0 transition-all disabled:opacity-50 ${revealedValue !== null ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-navy-700 border-edge-default text-ink-muted hover:text-ink-primary'}`}>
+              {revealedValue !== null ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
-            <button onClick={() => copy(selected.password, 'pass')} title="Copy password"
-              className={`p-2.5 rounded-lg border flex-shrink-0 transition-all ${copied === 'pass' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-navy-700 border-edge-default text-ink-muted hover:text-blue-400 hover:border-blue-500/30'}`}>
+            <button onClick={copyPassword} disabled={revealing} title="Copy password"
+              className={`p-2.5 rounded-lg border flex-shrink-0 transition-all disabled:opacity-50 ${copied === 'pass' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-navy-700 border-edge-default text-ink-muted hover:text-blue-400 hover:border-blue-500/30'}`}>
               <Copy size={13} />
             </button>
           </div>
@@ -295,15 +357,20 @@ function PasswordDetail({ selected, onBack, onEdit, onDelete }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function PasswordVault() {
-  const { passwords, addPassword, updatePassword, deletePassword } = useApp()
+  const { passwords, isLoading, addPassword, updatePassword, deletePassword } = useApp()
 
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
-  const [selectedId, setSelectedId] = useState<string>(passwords[0]?.id ?? '')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<PasswordEntry | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<PasswordEntry | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!selectedId && passwords.length > 0) setSelectedId(passwords[0].id)
+  }, [passwords, selectedId])
 
   const filtered = passwords.filter(p =>
     (category === 'All' || p.category === category) &&
@@ -317,10 +384,31 @@ export default function PasswordVault() {
     setMobileDetailOpen(true)
   }
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await deletePassword(deleteTarget.id)
+      if (selectedId === deleteTarget.id) setSelectedId(passwords.find(p => p.id !== deleteTarget.id)?.id ?? null)
+      setDeleteTarget(null)
+      setMobileDetailOpen(false)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full">
 
-      {/* List panel — full width on mobile, fixed width on desktop */}
+      {/* List panel */}
       <div className={`
         flex flex-col border-r border-edge-subtle bg-navy-900 flex-shrink-0 w-full
         md:w-72
@@ -398,24 +486,33 @@ export default function PasswordVault() {
       </div>
 
       {/* Modals */}
-      {addOpen && <PasswordForm onSave={d => { addPassword(d); setAddOpen(false) }} onClose={() => setAddOpen(false)} />}
-      {editEntry && <PasswordForm initial={editEntry} onSave={d => { updatePassword({ ...editEntry, ...d }); setEditEntry(null) }} onClose={() => setEditEntry(null)} />}
+      {addOpen && (
+        <PasswordForm
+          onSave={async d => { await addPassword(d as Omit<PasswordEntry, 'id' | 'updated' | 'strength'> & { password: string }); setAddOpen(false) }}
+          onClose={() => setAddOpen(false)}
+        />
+      )}
+      {editEntry && (
+        <PasswordForm
+          initial={editEntry}
+          onSave={async d => { await updatePassword({ ...editEntry, ...d }); setEditEntry(null) }}
+          onClose={() => setEditEntry(null)}
+        />
+      )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !deleting && setDeleteTarget(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative bg-navy-800 border border-red-500/30 rounded-2xl shadow-2xl w-full max-w-sm p-6" style={{ animation: 'modalIn 0.15s ease-out' }} onClick={e => e.stopPropagation()}>
             <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto mb-4"><Trash2 size={18} className="text-red-400" /></div>
             <h3 className="text-sm font-semibold text-ink-primary text-center mb-1">Delete Password Entry</h3>
             <p className="text-xs text-ink-muted text-center mb-5">Delete <span className="text-ink-primary font-mono">{deleteTarget.name}</span>? This cannot be undone.</p>
             <div className="flex gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-              <button onClick={() => {
-                deletePassword(deleteTarget.id)
-                setDeleteTarget(null)
-                setMobileDetailOpen(false)
-                if (selectedId === deleteTarget.id) setSelectedId(passwords[0]?.id ?? '')
-              }} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors">Delete</button>
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+                {deleting && <Loader2 size={12} className="animate-spin" />}
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>

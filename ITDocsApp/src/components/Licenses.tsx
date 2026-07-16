@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star,
   AlertTriangle, CheckCircle2, Clock, Calendar, DollarSign,
-  Key, Building2, Package, ChevronDown,
+  Key, Building2, Package, ChevronDown, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { License, LicenseCategory, LicenseType, LicenseStatus } from '../context/AuthContext'
+import type { License, LicenseCategory, LicenseType, LicenseStatus } from '../api/types'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ function daysUntil(date: string) {
 }
 
 function inp(err?: string) {
-  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 }
 
 // ─── License Modal ────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ function inp(err?: string) {
 function LicenseModal({ initial, onClose, onSave }: {
   initial?: License
   onClose: () => void
-  onSave: (l: Omit<License, 'id' | 'status'>) => void
+  onSave: (l: Omit<License, 'id' | 'status'>) => Promise<void>
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -65,35 +65,41 @@ function LicenseModal({ initial, onClose, onSave }: {
     starred: initial?.starred ?? false,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
 
   const set = (k: string, v: string | boolean) => { setForm(f => ({ ...f, [k]: v })); if (typeof v === 'string') setErrors(e => ({ ...e, [k]: '' })) }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.name.trim()) e.name = 'Required'
     if (!form.vendor.trim()) e.vendor = 'Required'
     if (!form.expiryDate) e.expiryDate = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({
-      name: form.name.trim(),
-      vendor: form.vendor.trim(),
-      category: form.category,
-      type: form.type,
-      seats: Number(form.seats) || 1,
-      seatsUsed: Number(form.seatsUsed) || 0,
-      purchaseDate: form.purchaseDate,
-      expiryDate: form.expiryDate,
-      cost: Number(form.cost) || 0,
-      currency: form.currency,
-      licenseKey: form.licenseKey.trim(),
-      notes: form.notes.trim(),
-      starred: form.starred,
-    })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        name: form.name.trim(),
+        vendor: form.vendor.trim(),
+        category: form.category,
+        type: form.type,
+        seats: Number(form.seats) || 1,
+        seatsUsed: Number(form.seatsUsed) || 0,
+        purchaseDate: form.purchaseDate,
+        expiryDate: form.expiryDate,
+        cost: Number(form.cost) || 0,
+        currency: form.currency,
+        licenseKey: form.licenseKey.trim(),
+        notes: form.notes.trim(),
+        starred: form.starred,
+      })
+    } catch {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-edge-subtle">
@@ -101,84 +107,85 @@ function LicenseModal({ initial, onClose, onSave }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit License' : 'Add License'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">Software, antivirus, domain, cloud subscription</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">License Name *</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Microsoft 365 Business" className={inp(errors.name)} autoFocus />
+              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Microsoft 365 Business" className={inp(errors.name)} autoFocus disabled={submitting} />
               {errors.name && <p className="text-[10px] text-red-400 mt-1">{errors.name}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Vendor *</label>
-              <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="Microsoft" className={inp(errors.vendor)} />
+              <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="Microsoft" className={inp(errors.vendor)} disabled={submitting} />
               {errors.vendor && <p className="text-[10px] text-red-400 mt-1">{errors.vendor}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Category</label>
-              <select value={form.category} onChange={e => set('category', e.target.value)} className={inp()}>
+              <select value={form.category} onChange={e => set('category', e.target.value)} className={inp()} disabled={submitting}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">License Type</label>
-              <select value={form.type} onChange={e => set('type', e.target.value)} className={inp()}>
+              <select value={form.type} onChange={e => set('type', e.target.value)} className={inp()} disabled={submitting}>
                 {LICENSE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Seats</label>
-                <input value={form.seats} onChange={e => set('seats', e.target.value)} placeholder="1" className={inp() + ' font-mono'} />
+                <input value={form.seats} onChange={e => set('seats', e.target.value)} placeholder="1" className={inp() + ' font-mono'} disabled={submitting} />
               </div>
               <div className="flex-1">
                 <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Used</label>
-                <input value={form.seatsUsed} onChange={e => set('seatsUsed', e.target.value)} placeholder="0" className={inp() + ' font-mono'} />
+                <input value={form.seatsUsed} onChange={e => set('seatsUsed', e.target.value)} placeholder="0" className={inp() + ' font-mono'} disabled={submitting} />
               </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Purchase Date</label>
-              <input type="date" value={form.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} className={inp()} />
+              <input type="date" value={form.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Expiry Date *</label>
-              <input type="date" value={form.expiryDate} onChange={e => set('expiryDate', e.target.value)} className={inp(errors.expiryDate)} />
+              <input type="date" value={form.expiryDate} onChange={e => set('expiryDate', e.target.value)} className={inp(errors.expiryDate)} disabled={submitting} />
               {errors.expiryDate && <p className="text-[10px] text-red-400 mt-1">{errors.expiryDate}</p>}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Annual Cost</label>
-              <input value={form.cost} onChange={e => set('cost', e.target.value)} placeholder="0.00" className={inp() + ' font-mono'} />
+              <input value={form.cost} onChange={e => set('cost', e.target.value)} placeholder="0.00" className={inp() + ' font-mono'} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Currency</label>
-              <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inp()}>
+              <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inp()} disabled={submitting}>
                 {['USD', 'EUR', 'GBP', 'CZK', 'PLN', 'CHF'].map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">License Key / Serial</label>
-            <input value={form.licenseKey} onChange={e => set('licenseKey', e.target.value)} placeholder="XXXXX-XXXXX-XXXXX-XXXXX" className={inp() + ' font-mono'} />
+            <input value={form.licenseKey} onChange={e => set('licenseKey', e.target.value)} placeholder="XXXXX-XXXXX-XXXXX-XXXXX" className={inp() + ' font-mono'} disabled={submitting} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className={inp() + ' resize-none'} />
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className={inp() + ' resize-none'} disabled={submitting} />
           </div>
         </div>
         <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/40">
-          <button onClick={() => set('starred', !form.starred)}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
+          <button onClick={() => !submitting && set('starred', !form.starred)} disabled={submitting}
+            className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
             <Star size={13} className={form.starred ? 'fill-yellow-400' : ''} /> Starred
           </button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-            <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95" style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-              {initial ? 'Save Changes' : 'Add License'}
+            <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+            <button onClick={submit} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5" style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
+              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Add License'}
             </button>
           </div>
         </div>
@@ -199,7 +206,17 @@ function LicenseDetail({ license, onEdit, onDelete, onToggleStar }: {
   const cc = CAT_COLORS[license.category]
   const days = daysUntil(license.expiryDate)
   const [keyVisible, setKeyVisible] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const seatPct = license.seats > 0 ? Math.min(100, (license.seatsUsed / license.seats) * 100) : 0
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await onDelete()
+    } catch {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
@@ -219,11 +236,13 @@ function LicenseDetail({ license, onEdit, onDelete, onToggleStar }: {
             </div>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            <button onClick={onToggleStar} className={`p-1.5 rounded-md transition-colors ${license.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-yellow-400'} hover:bg-navy-700`}>
+            <button onClick={onToggleStar} disabled={deleting} className={`p-1.5 rounded-md transition-colors disabled:opacity-40 ${license.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-yellow-400'} hover:bg-navy-700`}>
               <Star size={13} className={license.starred ? 'fill-yellow-400' : ''} />
             </button>
-            <button onClick={onEdit} className="p-1.5 rounded-md hover:bg-navy-700 text-ink-muted hover:text-ink-primary transition-colors"><Edit2 size={13} /></button>
-            <button onClick={onDelete} className="p-1.5 rounded-md hover:bg-navy-700 text-ink-muted hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+            <button onClick={onEdit} disabled={deleting} className="p-1.5 rounded-md hover:bg-navy-700 text-ink-muted hover:text-ink-primary transition-colors disabled:opacity-40"><Edit2 size={13} /></button>
+            <button onClick={handleDelete} disabled={deleting} className="p-1.5 rounded-md hover:bg-navy-700 text-ink-muted hover:text-red-400 transition-colors disabled:opacity-40">
+              {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+            </button>
           </div>
         </div>
       </div>
@@ -267,7 +286,6 @@ function LicenseDetail({ license, onEdit, onDelete, onToggleStar }: {
           </div>
         ))}
 
-        {/* License key with reveal */}
         {license.licenseKey && (
           <div className="flex items-center gap-2 py-1.5 border-b border-edge-subtle">
             <span className="text-ink-muted flex-shrink-0"><Key size={11} /></span>
@@ -298,15 +316,20 @@ function LicenseDetail({ license, onEdit, onDelete, onToggleStar }: {
 // ─── Licenses ─────────────────────────────────────────────────────────────────
 
 export default function Licenses() {
-  const { licenses, addLicense, updateLicense, deleteLicense, toggleStarLicense, currentOrg } = useApp()
+  const { licenses, isLoading, addLicense, updateLicense, deleteLicense, toggleStarLicense, currentOrg } = useApp()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<LicenseCategory | 'All'>('All')
   const [statusFilter, setStatusFilter] = useState<LicenseStatus | 'All'>('All')
   const [sortBy, setSortBy] = useState<'name' | 'expiry' | 'cost'>('expiry')
-  const [selected, setSelected] = useState<License | null>(licenses[0] ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [modal, setModal] = useState<{ open: boolean; initial?: License }>({ open: false })
   const [catOpen, setCatOpen] = useState(false)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
+
+  // Pick a default selection once data has loaded, without clobbering a user's choice
+  useEffect(() => {
+    if (!selectedId && licenses.length > 0) setSelectedId(licenses[0].id)
+  }, [licenses, selectedId])
 
   const filtered = licenses
     .filter(l =>
@@ -322,25 +345,36 @@ export default function Licenses() {
       return a.name.localeCompare(b.name)
     })
 
+  const selected = licenses.find(l => l.id === selectedId) ?? null
+
+  // Note: this sums cost across licenses that may be tracked in different
+  // currencies and labels the total "USD" — carried over from the original
+  // mock data. Worth fixing (convert or group by currency) before relying on it.
   const totalCost = licenses.reduce((s, l) => s + l.cost, 0)
   const expiring = licenses.filter(l => l.status === 'expiring').length
   const expired = licenses.filter(l => l.status === 'expired').length
   const active = licenses.filter(l => l.status === 'active').length
 
-  const handleSave = (data: Omit<License, 'id' | 'status'>) => {
+  const handleSave = async (data: Omit<License, 'id' | 'status'>) => {
     if (modal.initial) {
-      const updated = { ...modal.initial, ...data }
-      updateLicense(updated)
-      setSelected(updated)
+      await updateLicense({ ...modal.initial, ...data })
     } else {
-      addLicense(data)
+      await addLicense(data)
     }
     setModal({ open: false })
   }
 
-  const handleDelete = (id: string) => {
-    deleteLicense(id)
-    if (selected?.id === id) setSelected(filtered.find(l => l.id !== id) ?? null)
+  const handleDelete = async (id: string) => {
+    await deleteLicense(id)
+    if (selectedId === id) setSelectedId(filtered.find(l => l.id !== id)?.id ?? null)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
   }
 
   return (
@@ -350,7 +384,7 @@ export default function Licenses() {
         <div>
           <h1 className="text-xl font-semibold text-ink-primary">Licenses</h1>
           <p className="text-xs text-ink-muted mt-0.5 font-mono">
-            {currentOrg.name} · {licenses.length} licenses · {totalCost.toLocaleString()} USD tracked
+            {currentOrg ? `${currentOrg.name} · ` : ''}{licenses.length} licenses · {totalCost.toLocaleString()} tracked
           </p>
         </div>
         <button onClick={() => setModal({ open: true })}
@@ -387,7 +421,6 @@ export default function Licenses() {
             className="w-full pl-8 pr-3 py-2 rounded-lg bg-navy-800 border border-edge-default text-ink-primary text-xs placeholder:text-ink-muted focus:border-blue-500 focus:outline-none transition-colors" />
         </div>
 
-        {/* Category dropdown */}
         <div className="relative">
           <button onClick={() => setCatOpen(!catOpen)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs transition-colors ${category !== 'All' ? 'bg-blue-500/10 border-blue-500/40 text-blue-400' : 'bg-navy-800 border-edge-default text-ink-secondary hover:text-ink-primary'}`}>
@@ -407,7 +440,6 @@ export default function Licenses() {
           )}
         </div>
 
-        {/* Sort */}
         <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
           className="px-3 py-2 rounded-lg bg-navy-800 border border-edge-default text-xs text-ink-secondary focus:border-blue-500 focus:outline-none transition-colors">
           <option value="expiry">Sort: Expiry</option>
@@ -425,7 +457,6 @@ export default function Licenses() {
 
       {/* Two-panel */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* List */}
         <div className={`lg:col-span-3 bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden ${mobileDetailOpen ? 'hidden lg:block' : 'block'}`}>
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -449,8 +480,8 @@ export default function Licenses() {
                   const cc = CAT_COLORS[lic.category]
                   return (
                     <tr key={lic.id}
-                      onClick={() => { setSelected(lic); setMobileDetailOpen(true) }}
-                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${selected?.id === lic.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
+                      onClick={() => { setSelectedId(lic.id); setMobileDetailOpen(true) }}
+                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${selectedId === lic.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-start gap-2">
                           {lic.starred && <Star size={10} className="text-yellow-400 fill-yellow-400 mt-0.5 flex-shrink-0" />}
@@ -485,7 +516,6 @@ export default function Licenses() {
           )}
         </div>
 
-        {/* Detail */}
         <div className={`lg:col-span-2 ${mobileDetailOpen ? 'block' : 'hidden lg:block'}`}>
           {mobileDetailOpen && (
             <button

@@ -1,9 +1,44 @@
 import { useState } from 'react'
-import { Plus, Search, Network, Globe, Wifi, Server, Shield, Lock, Edit2, Trash2, X, ChevronDown, Dot } from 'lucide-react'
+import { Plus, Search, Network, Globe, Wifi, Server, Shield, Lock, Edit2, Trash2, X, ChevronDown, Dot, Loader2 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Subnet, IPEntry, IPEntryStatus, SubnetType } from '../context/AuthContext'
+import type { Subnet, IPEntry, IPEntryStatus, SubnetType } from '../api/types'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
+
+function getSubnetTypeFromString(type: string){
+  let subnetType: SubnetType
+
+  switch(type.toUpperCase()){
+    case "LAN":
+      subnetType = "LAN"
+      break;
+
+    case "WAN":
+      subnetType = "WAN"
+      break;
+
+    case "DMZ":
+      subnetType = "DMZ"
+      break;
+    
+    case "MGMT":
+      subnetType = "MGMT"
+      break;
+    
+    case "VPN":
+      subnetType = "VPN"
+      break;
+
+    case "WLAN":
+      subnetType = "WLAN"
+      break;
+
+    default:
+      subnetType = "LAN"
+  }
+
+  return subnetType
+}
 
 const TYPE_CONFIG: Record<SubnetType, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
   LAN:  { color: 'text-blue-400',   bg: 'bg-blue-500/12 border-blue-500/25',    icon: <Network size={12} />, label: 'LAN' },
@@ -21,7 +56,7 @@ const IP_STATUS: Record<IPEntryStatus, { dot: string; badge: string; label: stri
 }
 
 function inp(err?: string) {
-  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 }
 
 // ─── Subnet Modal ─────────────────────────────────────────────────────────────
@@ -29,7 +64,7 @@ function inp(err?: string) {
 function SubnetModal({ initial, onClose, onSave }: {
   initial?: Subnet
   onClose: () => void
-  onSave: (s: Omit<Subnet, 'id' | 'ips'>) => void
+  onSave: (s: Omit<Subnet, 'id' | 'ips'>) => Promise<void>
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -41,20 +76,26 @@ function SubnetModal({ initial, onClose, onSave }: {
     description: initial?.description ?? '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
 
   const set = (k: string, v: string) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.name.trim()) e.name = 'Required'
     if (!form.cidr.trim()) e.cidr = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({ ...form, vlan: form.vlan ? Number(form.vlan) : undefined })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({ ...form, vlan: form.vlan ? Number(form.vlan) : undefined })
+    } catch {
+      setSubmitting(false) // stay open, error toast already fired
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-md" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-edge-subtle">
@@ -62,52 +103,53 @@ function SubnetModal({ initial, onClose, onSave }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Subnet' : 'Add Subnet'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">Define a network segment or VLAN</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Name *</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Server Farm" className={inp(errors.name)} autoFocus />
+              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Server Farm" className={inp(errors.name)} autoFocus disabled={submitting} />
               {errors.name && <p className="text-[10px] text-red-400 mt-1">{errors.name}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">CIDR *</label>
-              <input value={form.cidr} onChange={e => set('cidr', e.target.value)} placeholder="10.0.1.0/24" className={inp(errors.cidr) + ' font-mono'} />
+              <input value={form.cidr} onChange={e => set('cidr', e.target.value)} placeholder="10.0.1.0/24" className={inp(errors.cidr) + ' font-mono'} disabled={submitting} />
               {errors.cidr && <p className="text-[10px] text-red-400 mt-1">{errors.cidr}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Type</label>
-              <select value={form.type} onChange={e => set('type', e.target.value)} className={inp()}>
+              <select value={form.type} onChange={e => set('type', e.target.value)} className={inp()} disabled={submitting}>
                 {(Object.keys(TYPE_CONFIG) as SubnetType[]).map(t => <option key={t} value={t}>{TYPE_CONFIG[t].label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">VLAN ID</label>
-              <input value={form.vlan} onChange={e => set('vlan', e.target.value)} placeholder="10" className={inp() + ' font-mono'} />
+              <input value={form.vlan} onChange={e => set('vlan', e.target.value)} placeholder="10" className={inp() + ' font-mono'} disabled={submitting} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Gateway</label>
-              <input value={form.gateway} onChange={e => set('gateway', e.target.value)} placeholder="10.0.1.1" className={inp() + ' font-mono'} />
+              <input value={form.gateway} onChange={e => set('gateway', e.target.value)} placeholder="10.0.1.1" className={inp() + ' font-mono'} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">DNS</label>
-              <input value={form.dns} onChange={e => set('dns', e.target.value)} placeholder="8.8.8.8" className={inp() + ' font-mono'} />
+              <input value={form.dns} onChange={e => set('dns', e.target.value)} placeholder="8.8.8.8" className={inp() + ' font-mono'} disabled={submitting} />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
-            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} className={inp() + ' resize-none'} />
+            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} className={inp() + ' resize-none'} disabled={submitting} />
           </div>
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-edge-subtle bg-navy-900/40">
-          <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-          <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95" style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-            {initial ? 'Save Changes' : 'Add Subnet'}
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5" style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
+            {submitting && <Loader2 size={11} className="animate-spin" />}
+            {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Add Subnet'}
           </button>
         </div>
       </div>
@@ -121,7 +163,7 @@ function IPModal({ initial, assets, onClose, onSave }: {
   initial?: IPEntry
   assets: { id: string; name: string; ip: string }[]
   onClose: () => void
-  onSave: (e: Omit<IPEntry, 'id'>) => void
+  onSave: (e: Omit<IPEntry, 'id'>) => Promise<void>
 }) {
   const [form, setForm] = useState<{
     ip: string; label: string; status: IPEntryStatus; assetId: string; notes: string
@@ -133,19 +175,25 @@ function IPModal({ initial, assets, onClose, onSave }: {
     notes: initial?.notes ?? '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
 
   const set = (k: string, v: string) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.ip.trim()) e.ip = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({ ip: form.ip.trim(), label: form.label.trim(), status: form.status, assetId: form.assetId || undefined, notes: form.notes.trim() })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({ ip: form.ip.trim(), label: form.label.trim(), status: form.status, assetId: form.assetId || undefined, notes: form.notes.trim() })
+    } catch {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle">
@@ -153,18 +201,18 @@ function IPModal({ initial, assets, onClose, onSave }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit IP Entry' : 'Add IP Entry'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">Assign and document an IP address</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-5 py-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">IP Address *</label>
-              <input value={form.ip} onChange={e => set('ip', e.target.value)} placeholder="10.0.1.10" className={inp(errors.ip) + ' font-mono'} autoFocus />
+              <input value={form.ip} onChange={e => set('ip', e.target.value)} placeholder="10.0.1.10" className={inp(errors.ip) + ' font-mono'} autoFocus disabled={submitting} />
               {errors.ip && <p className="text-[10px] text-red-400 mt-1">{errors.ip}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className={inp()}>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={inp()} disabled={submitting}>
                 <option value="free">Free</option>
                 <option value="used">Used</option>
                 <option value="reserved">Reserved</option>
@@ -173,11 +221,11 @@ function IPModal({ initial, assets, onClose, onSave }: {
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Label / Hostname</label>
-            <input value={form.label} onChange={e => set('label', e.target.value)} placeholder="hostname or plain text" className={inp() + ' font-mono'} />
+            <input value={form.label} onChange={e => set('label', e.target.value)} placeholder="hostname or plain text" className={inp() + ' font-mono'} disabled={submitting} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Assign to Asset</label>
-            <select value={form.assetId} onChange={e => set('assetId', e.target.value)} className={inp()}>
+            <select value={form.assetId} onChange={e => set('assetId', e.target.value)} className={inp()} disabled={submitting}>
               <option value="">— None —</option>
               {assets.map(a => (
                 <option key={a.id} value={a.id}>{a.name} ({a.ip})</option>
@@ -186,13 +234,14 @@ function IPModal({ initial, assets, onClose, onSave }: {
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Notes</label>
-            <input value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Optional notes" className={inp()} />
+            <input value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Optional notes" className={inp()} disabled={submitting} />
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-edge-subtle bg-navy-900/40">
-          <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-          <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95" style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-            {initial ? 'Save' : 'Add IP'}
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5" style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
+            {submitting && <Loader2 size={11} className="animate-spin" />}
+            {submitting ? 'Saving…' : initial ? 'Save' : 'Add IP'}
           </button>
         </div>
       </div>
@@ -207,15 +256,25 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
   assets: { id: string; name: string; ip: string }[]
   onEdit: () => void
   onDelete: () => void
-  onAddIP: (e: Omit<IPEntry, 'id'>) => void
-  onEditIP: (e: IPEntry) => void
-  onDeleteIP: (entryId: string) => void
+  onAddIP: (e: Omit<IPEntry, 'id'>) => Promise<void>
+  onEditIP: (e: IPEntry) => Promise<void>
+  onDeleteIP: (entryId: string) => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(false)
   const [ipModal, setIPModal] = useState<{ open: boolean; initial?: IPEntry }>({ open: false })
-  const tc = TYPE_CONFIG[subnet.type]
+  const [deletingIpId, setDeletingIpId] = useState<string | null>(null)
+  const tc = TYPE_CONFIG[getSubnetTypeFromString(subnet.type)]
   const usedCount = subnet.ips.filter(ip => ip.status === 'used').length
   const reservedCount = subnet.ips.filter(ip => ip.status === 'reserved').length
+
+  const handleDeleteIp = async (entryId: string) => {
+    setDeletingIpId(entryId)
+    try {
+      await onDeleteIP(entryId)
+    } finally {
+      setDeletingIpId(null)
+    }
+  }
 
   return (
     <div className="border border-edge-subtle rounded-xl overflow-hidden bg-navy-800 transition-all">
@@ -227,7 +286,7 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-ink-primary">{subnet.name}</span>
-            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md border font-semibold ${tc.bg} ${tc.color}`}>{subnet.type}</span>
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md border font-semibold ${tc.bg} ${tc.color}`}>{getSubnetTypeFromString(subnet.type)}</span>
             {subnet.vlan != null && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-navy-700 text-ink-muted border border-edge-subtle">VLAN {subnet.vlan}</span>}
           </div>
           <div className="flex items-center gap-3 mt-0.5">
@@ -250,7 +309,6 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
       {/* IP Table */}
       {expanded && (
         <div className="border-t border-edge-subtle">
-          {/* Subnet details strip */}
           {(subnet.gateway || subnet.dns || subnet.description) && (
             <div className="flex items-center gap-4 px-4 py-2.5 bg-navy-900/40 border-b border-edge-subtle flex-wrap">
               {subnet.gateway && <span className="text-[10px] text-ink-muted font-mono">GW: <span className="text-ink-secondary">{subnet.gateway}</span></span>}
@@ -279,11 +337,12 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
                 </thead>
                 <tbody className="divide-y divide-edge-subtle">
                   {[...subnet.ips].sort((a, b) => {
-                    const toNum = (ip: string) => ip.split('.').reduce((acc, oct) => acc * 256 + parseInt(oct), 0)
+                    const toNum = (ip: string) => ip.split('.').reduce((acc, oct) => acc * 256 + (parseInt(oct) || 0), 0)
                     return toNum(a.ip) - toNum(b.ip)
                   }).map(entry => {
                     const sc = IP_STATUS[entry.status]
                     const assignedAsset = entry.assetId ? assets.find(a => a.id === entry.assetId) : null
+                    const isDeleting = deletingIpId === entry.id
                     return (
                       <tr key={entry.id} className="group hover:bg-navy-700/40 transition-colors">
                         <td className="px-4 py-2.5 font-mono text-ink-primary font-medium">{entry.ip}</td>
@@ -304,10 +363,12 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
                         <td className="px-4 py-2.5 text-ink-muted">{entry.notes || '—'}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex gap-1">
-                            <button onClick={() => setIPModal({ open: true, initial: entry })}
-                              className="p-1 rounded text-ink-muted hover:text-ink-primary hover:bg-navy-600 transition-colors"><Edit2 size={11} /></button>
-                            <button onClick={() => onDeleteIP(entry.id)}
-                              className="p-1 rounded text-ink-muted hover:text-red-400 hover:bg-navy-600 transition-colors"><Trash2 size={11} /></button>
+                            <button onClick={() => setIPModal({ open: true, initial: entry })} disabled={isDeleting}
+                              className="p-1 rounded text-ink-muted hover:text-ink-primary hover:bg-navy-600 transition-colors disabled:opacity-40"><Edit2 size={11} /></button>
+                            <button onClick={() => handleDeleteIp(entry.id)} disabled={isDeleting}
+                              className="p-1 rounded text-ink-muted hover:text-red-400 hover:bg-navy-600 transition-colors disabled:opacity-40">
+                              {isDeleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -332,9 +393,9 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
           initial={ipModal.initial}
           assets={assets}
           onClose={() => setIPModal({ open: false })}
-          onSave={e => {
-            if (ipModal.initial) onEditIP({ ...ipModal.initial, ...e })
-            else onAddIP(e)
+          onSave={async e => {
+            if (ipModal.initial) await onEditIP({ ...ipModal.initial, ...e })
+            else await onAddIP(e)
             setIPModal({ open: false })
           }}
         />
@@ -346,9 +407,10 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
 // ─── Networks ─────────────────────────────────────────────────────────────────
 
 export default function Networks() {
-  const { assets, subnets, addSubnet, updateSubnet, deleteSubnet, addIPEntry, updateIPEntry, deleteIPEntry, currentOrg } = useApp()
+  const { assets, subnets, isLoading, addSubnet, updateSubnet, deleteSubnet, addIPEntry, updateIPEntry, deleteIPEntry, currentOrg } = useApp()
   const [query, setQuery] = useState('')
   const [subnetModal, setSubnetModal] = useState<{ open: boolean; initial?: Subnet }>({ open: false })
+  const [deletingSubnetId, setDeletingSubnetId] = useState<string | null>(null)
 
   const assetOptions = assets.map(a => ({ id: a.id, name: a.name, ip: a.ip }))
 
@@ -366,6 +428,23 @@ export default function Networks() {
     count: subnets.filter(s => s.type === type).length,
   })).filter(t => t.count > 0)
 
+  const handleDeleteSubnet = async (id: string) => {
+    setDeletingSubnetId(id)
+    try {
+      await deleteSubnet(id)
+    } finally {
+      setDeletingSubnetId(null)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 max-w-[1100px]">
       {/* Header */}
@@ -373,7 +452,7 @@ export default function Networks() {
         <div>
           <h1 className="text-xl font-semibold text-ink-primary">Networks</h1>
           <p className="text-xs text-ink-muted mt-0.5 font-mono">
-            {currentOrg.name} · {subnets.length} subnet{subnets.length !== 1 ? 's' : ''} · {totalIPs} IPs tracked · {usedIPs} in use
+            {currentOrg ? `${currentOrg.name} · ` : ''}{subnets.length} subnet{subnets.length !== 1 ? 's' : ''} · {totalIPs} IPs tracked · {usedIPs} in use
           </p>
         </div>
         <button onClick={() => setSubnetModal({ open: true })}
@@ -439,16 +518,17 @@ export default function Networks() {
       ) : (
         <div className="space-y-3">
           {filtered.map(subnet => (
-            <SubnetRow
-              key={subnet.id}
-              subnet={subnet}
-              assets={assetOptions}
-              onEdit={() => setSubnetModal({ open: true, initial: subnet })}
-              onDelete={() => deleteSubnet(subnet.id)}
-              onAddIP={e => addIPEntry(subnet.id, e)}
-              onEditIP={e => updateIPEntry(subnet.id, e)}
-              onDeleteIP={id => deleteIPEntry(subnet.id, id)}
-            />
+            <div key={subnet.id} className={deletingSubnetId === subnet.id ? 'opacity-50 pointer-events-none' : ''}>
+              <SubnetRow
+                subnet={subnet}
+                assets={assetOptions}
+                onEdit={() => setSubnetModal({ open: true, initial: subnet })}
+                onDelete={() => handleDeleteSubnet(subnet.id)}
+                onAddIP={e => addIPEntry(subnet.id, e)}
+                onEditIP={e => updateIPEntry(subnet.id, e)}
+                onDeleteIP={id => deleteIPEntry(subnet.id, id)}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -457,9 +537,9 @@ export default function Networks() {
         <SubnetModal
           initial={subnetModal.initial}
           onClose={() => setSubnetModal({ open: false })}
-          onSave={data => {
-            if (subnetModal.initial) updateSubnet({ ...subnetModal.initial, ...data })
-            else addSubnet(data)
+          onSave={async data => {
+            if (subnetModal.initial) await updateSubnet({ ...subnetModal.initial, ...data })
+            else await addSubnet(data)
             setSubnetModal({ open: false })
           }}
         />
