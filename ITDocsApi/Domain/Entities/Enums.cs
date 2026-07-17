@@ -36,7 +36,14 @@ public enum LicenseStatus
     [JsonStringEnumMemberName("inactive")] Inactive
 }
 public enum ContractCategory { Service, Support, Maintenance, Lease, NDA, SLA, Software, Other }
-public enum ContractStatus { Active, Expiring, Expired, Draft }
+
+public enum ContractStatus
+{
+    [JsonStringEnumMemberName("active")] Active,
+    [JsonStringEnumMemberName("expiring")] Expiring,
+    [JsonStringEnumMemberName("expired")] Expired,
+    [JsonStringEnumMemberName("draft")] Draft
+}
 
 public enum Priority
 {
@@ -93,7 +100,13 @@ public enum GroupType
     [JsonStringEnumMemberName("Other")] Other
 }
 public enum WarrantyType { Standard, Extended, OnSiteNbd, CarryIn, MailIn, Other }
-public enum WarrantyStatus { Active, Expiring, Expired }
+
+public enum WarrantyStatus
+{
+    [JsonStringEnumMemberName("active")] Active,
+    [JsonStringEnumMemberName("expiring")] Expiring,
+    [JsonStringEnumMemberName("expired")] Expired
+}
 
 public enum DiagramDeviceType
 {

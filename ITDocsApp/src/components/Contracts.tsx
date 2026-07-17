@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star, ArrowLeft,
   Calendar, DollarSign, Building2, FileText, RefreshCw,
-  CheckCircle2, AlertTriangle, Clock, ChevronDown,
+  CheckCircle2, AlertTriangle, Clock, ChevronDown, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Contract, ContractCategory, ContractStatus } from '../context/AuthContext'
+import type { Contract, ContractCategory, ContractStatus } from '../api/types'
 
 const CATEGORIES: ContractCategory[] = ['Service', 'Support', 'Maintenance', 'Lease', 'NDA', 'SLA', 'Software', 'Other']
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CZK']
@@ -33,14 +33,14 @@ function daysUntil(date: string) {
 }
 
 const inp = (err?: string) =>
-  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 
 // ─── Contract Modal ───────────────────────────────────────────────────────────
 
 function ContractModal({ initial, onClose, onSave }: {
   initial?: Contract
   onClose: () => void
-  onSave: (c: Omit<Contract, 'id' | 'status'>) => void
+  onSave: (c: Omit<Contract, 'id' | 'status'>) => Promise<void>
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -55,35 +55,41 @@ function ContractModal({ initial, onClose, onSave }: {
     starred: initial?.starred ?? false,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
 
   const set = (k: string, v: string | boolean) => {
     setForm(f => ({ ...f, [k]: v }))
     if (typeof v === 'string') setErrors(e => ({ ...e, [k]: '' }))
   }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.name.trim()) e.name = 'Required'
     if (!form.vendor.trim()) e.vendor = 'Required'
     if (!form.endDate) e.endDate = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({
-      name: form.name.trim(),
-      vendor: form.vendor.trim(),
-      category: form.category,
-      startDate: form.startDate,
-      endDate: form.endDate,
-      value: Number(form.value) || 0,
-      currency: form.currency,
-      autoRenew: form.autoRenew,
-      notes: form.notes.trim(),
-      starred: form.starred,
-    })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        name: form.name.trim(),
+        vendor: form.vendor.trim(),
+        category: form.category,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        value: Number(form.value) || 0,
+        currency: form.currency,
+        autoRenew: form.autoRenew,
+        notes: form.notes.trim(),
+        starred: form.starred,
+      })
+    } catch {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
         style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
@@ -92,23 +98,23 @@ function ContractModal({ initial, onClose, onSave }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Contract' : 'Add Contract'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">Vendor agreements, SLAs, leases</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Contract Name *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Annual Support Agreement" className={inp(errors.name)} autoFocus />
+            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Annual Support Agreement" className={inp(errors.name)} autoFocus disabled={submitting} />
             {errors.name && <p className="text-[10px] text-red-400 mt-1">{errors.name}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Vendor *</label>
-              <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="Acme Corp" className={inp(errors.vendor)} />
+              <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="Acme Corp" className={inp(errors.vendor)} disabled={submitting} />
               {errors.vendor && <p className="text-[10px] text-red-400 mt-1">{errors.vendor}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Category</label>
-              <select value={form.category} onChange={e => set('category', e.target.value)} className={inp()}>
+              <select value={form.category} onChange={e => set('category', e.target.value)} className={inp()} disabled={submitting}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -116,22 +122,22 @@ function ContractModal({ initial, onClose, onSave }: {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Start Date</label>
-              <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} className={inp()} />
+              <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">End Date *</label>
-              <input type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} className={inp(errors.endDate)} />
+              <input type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} className={inp(errors.endDate)} disabled={submitting} />
               {errors.endDate && <p className="text-[10px] text-red-400 mt-1">{errors.endDate}</p>}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Contract Value</label>
-              <input value={form.value} onChange={e => set('value', e.target.value)} placeholder="0.00" className={inp() + ' font-mono'} />
+              <input value={form.value} onChange={e => set('value', e.target.value)} placeholder="0.00" className={inp() + ' font-mono'} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Currency</label>
-              <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inp()}>
+              <select value={form.currency} onChange={e => set('currency', e.target.value)} className={inp()} disabled={submitting}>
                 {CURRENCIES.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
@@ -139,29 +145,30 @@ function ContractModal({ initial, onClose, onSave }: {
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
-              placeholder="Key terms, contact persons, renewal conditions…" className={inp() + ' resize-none'} />
+              placeholder="Key terms, contact persons, renewal conditions…" className={inp() + ' resize-none'} disabled={submitting} />
           </div>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-medium text-ink-secondary">Auto-Renew</p>
               <p className="text-[10px] text-ink-muted">Contract renews automatically</p>
             </div>
-            <button onClick={() => set('autoRenew', !form.autoRenew)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${form.autoRenew ? 'bg-blue-500' : 'bg-navy-600 border border-edge-default'}`}>
+            <button onClick={() => !submitting && set('autoRenew', !form.autoRenew)} disabled={submitting}
+              className={`relative w-10 h-5 rounded-full transition-colors disabled:opacity-50 ${form.autoRenew ? 'bg-blue-500' : 'bg-navy-600 border border-edge-default'}`}>
               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${form.autoRenew ? 'left-5' : 'left-0.5'}`} />
             </button>
           </div>
         </div>
         <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/40">
-          <button onClick={() => set('starred', !form.starred)}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
+          <button onClick={() => !submitting && set('starred', !form.starred)} disabled={submitting}
+            className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
             <Star size={13} className={form.starred ? 'fill-yellow-400' : ''} /> Starred
           </button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-            <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95"
+            <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+            <button onClick={submit} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
               style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-              {initial ? 'Save Changes' : 'Add Contract'}
+              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Add Contract'}
             </button>
           </div>
         </div>
@@ -248,14 +255,18 @@ function ContractDetail({ contract, onEdit, onDelete, onToggleStar }: {
 // ─── Contracts ────────────────────────────────────────────────────────────────
 
 export default function Contracts() {
-  const { contracts, addContract, updateContract, deleteContract, toggleStarContract } = useApp()
+  const { contracts, isLoading, addContract, updateContract, deleteContract, toggleStarContract } = useApp()
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'All'>('All')
-  const [selected, setSelected] = useState<Contract | null>(contracts[0] ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; initial?: Contract }>({ open: false })
   const [catOpen, setCatOpen] = useState(false)
   const [catFilter, setCatFilter] = useState<ContractCategory | 'All'>('All')
+
+  useEffect(() => {
+    if (!selectedId && contracts.length > 0) setSelectedId(contracts[0].id)
+  }, [contracts, selectedId])
 
   const filtered = contracts.filter(c =>
     (statusFilter === 'All' || c.status === statusFilter) &&
@@ -264,26 +275,34 @@ export default function Contracts() {
      c.vendor.toLowerCase().includes(query.toLowerCase()))
   )
 
+  const selected = contracts.find(c => c.id === selectedId) ?? null
+
   const totalValue = contracts.reduce((s, c) => s + c.value, 0)
   const active = contracts.filter(c => c.status === 'active').length
   const expiring = contracts.filter(c => c.status === 'expiring').length
   const expired = contracts.filter(c => c.status === 'expired').length
 
-  const handleSave = (data: Omit<Contract, 'id' | 'status'>) => {
+  const handleSave = async (data: Omit<Contract, 'id' | 'status'>) => {
     if (modal.initial) {
-      const updated = { ...modal.initial, ...data }
-      updateContract(updated)
-      setSelected(updated)
+      await updateContract({ ...modal.initial, ...data })
     } else {
-      addContract(data)
+      await addContract(data)
     }
     setModal({ open: false })
   }
 
-  const handleDelete = (id: string) => {
-    deleteContract(id)
-    if (selected?.id === id) setSelected(filtered.find(c => c.id !== id) ?? null)
+  const handleDelete = async (id: string) => {
+    await deleteContract(id)
+    if (selectedId === id) setSelectedId(filtered.find(c => c.id !== id)?.id ?? null)
     setMobileDetailOpen(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
   }
 
   return (
@@ -292,7 +311,7 @@ export default function Contracts() {
       <div className="flex items-start justify-between mb-5 gap-4">
         <div>
           <h1 className="text-xl font-semibold text-ink-primary">Contracts</h1>
-          <p className="text-xs text-ink-muted mt-0.5">{contracts.length} contracts · {totalValue.toLocaleString()} USD total value</p>
+          <p className="text-xs text-ink-muted mt-0.5">{contracts.length} contracts · {totalValue.toLocaleString()} total value</p>
         </div>
         <button onClick={() => setModal({ open: true })}
           className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-sm font-medium transition-all flex-shrink-0"
@@ -375,8 +394,8 @@ export default function Contracts() {
                   const sc = STATUS_CONFIG[c.status]
                   return (
                     <tr key={c.id}
-                      onClick={() => { setSelected(c); setMobileDetailOpen(true) }}
-                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${selected?.id === c.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
+                      onClick={() => { setSelectedId(c.id); setMobileDetailOpen(true) }}
+                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${selectedId === c.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-start gap-2">
                           {c.starred && <Star size={10} className="text-yellow-400 fill-yellow-400 mt-0.5 flex-shrink-0" />}

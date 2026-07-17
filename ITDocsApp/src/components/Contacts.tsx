@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star, ArrowLeft,
-  Phone, Mail, Building2, User, Tag, Copy, Check,
+  Phone, Mail, Building2, User, Tag, Copy, Check, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Contact } from '../context/AuthContext'
+import type { Contact } from '../api/types'
 
 const inp = (err?: string) =>
-  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 
 function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -41,7 +41,7 @@ function CopyBtn({ value }: { value: string }) {
 function ContactModal({ initial, onClose, onSave }: {
   initial?: Contact
   onClose: () => void
-  onSave: (c: Omit<Contact, 'id'>) => void
+  onSave: (c: Omit<Contact, 'id'>) => Promise<void>
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -54,31 +54,37 @@ function ContactModal({ initial, onClose, onSave }: {
     starred: initial?.starred ?? false,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
 
   const set = (k: string, v: string | boolean) => {
     setForm(f => ({ ...f, [k]: v }))
     if (typeof v === 'string') setErrors(e => ({ ...e, [k]: '' }))
   }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.name.trim()) e.name = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({
-      name: form.name.trim(),
-      company: form.company.trim(),
-      role: form.role.trim(),
-      phone: form.phone.trim(),
-      email: form.email.trim(),
-      description: form.description.trim(),
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-      starred: form.starred,
-    })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        name: form.name.trim(),
+        company: form.company.trim(),
+        role: form.role.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        description: form.description.trim(),
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        starred: form.starred,
+      })
+    } catch {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
         style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
@@ -87,54 +93,55 @@ function ContactModal({ initial, onClose, onSave }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Contact' : 'Add Contact'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">Vendor, partner, or team contact</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Full Name *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Jane Smith" className={inp(errors.name)} autoFocus />
+            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Jane Smith" className={inp(errors.name)} autoFocus disabled={submitting} />
             {errors.name && <p className="text-[10px] text-red-400 mt-1">{errors.name}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Company</label>
-              <input value={form.company} onChange={e => set('company', e.target.value)} placeholder="Acme Corp" className={inp()} />
+              <input value={form.company} onChange={e => set('company', e.target.value)} placeholder="Acme Corp" className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Role / Title</label>
-              <input value={form.role} onChange={e => set('role', e.target.value)} placeholder="Account Manager" className={inp()} />
+              <input value={form.role} onChange={e => set('role', e.target.value)} placeholder="Account Manager" className={inp()} disabled={submitting} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Phone</label>
-              <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+1 555-000-0000" className={inp()} />
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+1 555-000-0000" className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Email</label>
-              <input value={form.email} onChange={e => set('email', e.target.value)} placeholder="jane@example.com" className={inp()} />
+              <input value={form.email} onChange={e => set('email', e.target.value)} placeholder="jane@example.com" className={inp()} disabled={submitting} />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description / Notes</label>
             <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
-              placeholder="Context, relationship notes…" className={inp() + ' resize-none'} />
+              placeholder="Context, relationship notes…" className={inp() + ' resize-none'} disabled={submitting} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Tags (comma-separated)</label>
-            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="vendor, support, billing" className={inp()} />
+            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="vendor, support, billing" className={inp()} disabled={submitting} />
           </div>
         </div>
         <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/40">
-          <button onClick={() => set('starred', !form.starred)}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
+          <button onClick={() => !submitting && set('starred', !form.starred)} disabled={submitting}
+            className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
             <Star size={13} className={form.starred ? 'fill-yellow-400' : ''} /> Starred
           </button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-            <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95"
+            <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+            <button onClick={submit} disabled={submitting} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
               style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-              {initial ? 'Save Changes' : 'Add Contact'}
+              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Add Contact'}
             </button>
           </div>
         </div>
@@ -145,17 +152,29 @@ function ContactModal({ initial, onClose, onSave }: {
 
 // ─── Delete Confirm ───────────────────────────────────────────────────────────
 
-function DeleteConfirm({ name, onClose, onConfirm }: { name: string; onClose: () => void; onConfirm: () => void }) {
+function DeleteConfirm({ name, onClose, onConfirm }: { name: string; onClose: () => void; onConfirm: () => Promise<void> }) {
+  const [deleting, setDeleting] = useState(false)
+  const handleConfirm = async () => {
+    setDeleting(true)
+    try {
+      await onConfirm()
+    } catch {
+      setDeleting(false)
+    }
+  }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !deleting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-sm p-6"
         style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <h3 className="text-sm font-semibold text-ink-primary mb-1">Delete Contact</h3>
         <p className="text-xs text-ink-secondary mb-5">Are you sure you want to delete <span className="text-ink-primary font-medium">{name}</span>? This cannot be undone.</p>
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-          <button onClick={onConfirm} className="px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-all active:scale-95">Delete</button>
+          <button onClick={onClose} disabled={deleting} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+          <button onClick={handleConfirm} disabled={deleting} className="px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5">
+            {deleting && <Loader2 size={11} className="animate-spin" />}
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
         </div>
       </div>
     </div>
@@ -283,13 +302,17 @@ function ContactDetail({ contact, onEdit, onDelete, onToggleStar }: {
 // ─── Contacts ─────────────────────────────────────────────────────────────────
 
 export default function Contacts() {
-  const { contacts, addContact, updateContact, deleteContact, toggleStarContact } = useApp()
+  const { contacts, isLoading, addContact, updateContact, deleteContact, toggleStarContact } = useApp()
   const [query, setQuery] = useState('')
   const [starOnly, setStarOnly] = useState(false)
-  const [selected, setSelected] = useState<Contact | null>(contacts[0] ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; initial?: Contact }>({ open: false })
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null)
+
+  useEffect(() => {
+    if (!selectedId && contacts.length > 0) setSelectedId(contacts[0].id)
+  }, [contacts, selectedId])
 
   const filtered = contacts.filter(c =>
     (!starOnly || c.starred) &&
@@ -299,27 +322,35 @@ export default function Contacts() {
      c.phone.toLowerCase().includes(query.toLowerCase()))
   )
 
-  const handleSave = (data: Omit<Contact, 'id'>) => {
+  const selected = contacts.find(c => c.id === selectedId) ?? null
+
+  const handleSave = async (data: Omit<Contact, 'id'>) => {
     if (modal.initial) {
-      const updated = { ...modal.initial, ...data }
-      updateContact(updated)
-      setSelected(updated)
+      await updateContact({ ...modal.initial, ...data })
     } else {
-      addContact(data)
+      await addContact(data)
     }
     setModal({ open: false })
   }
 
-  const handleDelete = (c: Contact) => {
-    deleteContact(c.id)
-    if (selected?.id === c.id) setSelected(filtered.find(x => x.id !== c.id) ?? null)
+  const handleDelete = async (c: Contact) => {
+    await deleteContact(c.id)
+    if (selectedId === c.id) setSelectedId(filtered.find(x => x.id !== c.id)?.id ?? null)
     setMobileDetailOpen(false)
     setDeleteTarget(null)
   }
 
   const selectContact = (c: Contact) => {
-    setSelected(c)
+    setSelectedId(c.id)
     setMobileDetailOpen(true)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
   }
 
   return (
@@ -365,7 +396,7 @@ export default function Contacts() {
               </div>
             ) : (
               filtered.map(c => (
-                <ContactItem key={c.id} contact={c} selected={selected?.id === c.id} onClick={() => selectContact(c)} />
+                <ContactItem key={c.id} contact={c} selected={selectedId === c.id} onClick={() => selectContact(c)} />
               ))
             )}
           </div>
@@ -373,7 +404,6 @@ export default function Contacts() {
 
         {/* Detail panel */}
         <div className={`lg:col-span-3 ${mobileDetailOpen ? 'block' : 'hidden lg:block'}`}>
-          {/* Mobile back button */}
           {mobileDetailOpen && (
             <button onClick={() => setMobileDetailOpen(false)}
               className="lg:hidden flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 mb-3 transition-colors">

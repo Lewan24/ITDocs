@@ -63,6 +63,14 @@ export function qs(params: Record<string, string | undefined | null>): string {
 export const http = {
   get: <T>(path: string) => request<T>(path),
   getString: (path: string) => request<string>(path, {}, true),
+  getBlob: async (path: string): Promise<Blob> => {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+    })
+    if (res.status === 401) { onUnauthorized?.(); throw new ApiError(401, 'Session expired.') }
+    if (!res.ok) throw new ApiError(res.status, res.statusText)
+    return res.blob()
+  },
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body !== undefined ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>

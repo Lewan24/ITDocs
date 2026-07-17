@@ -118,6 +118,7 @@ export const warrantyApi = {
   delete: (id: string) => http.delete<void>(`/warranties/${id}`),
   toggleStar: (id: string) => http.patch<{ starred: boolean }>(`/warranties/${id}/star`),
   uploadDocument: (id: string, file: File) => http.upload<WarrantyItem>(`/warranties/${id}/document`, file),
+  downloadDocument: (id: string) => http.getBlob(`/warranties/${id}/document`),
 }
 
 export const diagramApi = {

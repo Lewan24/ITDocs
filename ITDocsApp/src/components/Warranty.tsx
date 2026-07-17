@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Search, Plus, X, Edit2, Trash2, Star, ArrowLeft, Copy, Eye,
   Paperclip, FileText, Shield, Calendar, Phone, Mail, Building2,
-  CheckCircle2, AlertTriangle, Clock, Upload, ChevronDown,
+  CheckCircle2, AlertTriangle, Clock, Upload, ChevronDown, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { WarrantyItem, WarrantyType, WarrantyDocument } from '../context/AuthContext'
+import { warrantyApi } from '../api/resources'
+import type { WarrantyItem, WarrantyType, WarrantyDocument } from '../api/types'
 
 const WARRANTY_TYPES: WarrantyType[] = ['Standard', 'Extended', 'On-Site NBD', 'Carry-In', 'Mail-In', 'Other']
 const STATUS_FILTERS = ['All', 'Active', 'Expiring', 'Expired'] as const
@@ -32,40 +33,63 @@ function formatDate(d: string): string {
 }
 
 function inp(error?: string) {
-  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 }
 
-// ─── Document Uploader (shared) ────────────────────────────────────────────────
+// ─── Document viewer helper ─────────────────────────────────────────────────
+// Documents live server-side now (no inline base64) — viewing means an
+// authenticated blob fetch, then opening it as an object URL.
 
-function DocUploader({ doc, onChange }: { doc?: WarrantyDocument; onChange: (d: WarrantyDocument | undefined) => void }) {
+async function openDocument(id: string, toast: (msg: string, type?: 'success' | 'error' | 'info') => void) {
+  try {
+    const blob = await warrantyApi.downloadDocument(id)
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch {
+    toast('Failed to load document', 'error')
+  }
+}
+
+// ─── Document Uploader ─────────────────────────────────────────────────────
+// Two modes:
+//  - "pending" (no warrantyId yet, e.g. inside the create form): holds a File
+//    locally via onPendingFile; nothing is uploaded until the item exists.
+//  - "attached" (editing an existing item): uploads immediately on file pick.
+
+function DocUploader({
+  doc, warrantyId, pendingFileName, onPendingFile, onUploaded,
+}: {
+  doc?: WarrantyDocument
+  warrantyId?: string
+  pendingFileName?: string
+  onPendingFile?: (file: File) => void
+  onUploaded?: (doc: WarrantyDocument) => void
+}) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [warning, setWarning] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const { toast } = useApp()
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     setWarning('')
     if (file.size > 5 * 1024 * 1024) {
       setWarning(`File is large (${formatSize(file.size)}). Large files may affect performance.`)
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      onChange({
-        name: file.name,
-        mimeType: file.type,
-        size: file.size,
-        data: reader.result as string,
-      })
+    if (warrantyId) {
+      setUploading(true)
+      try {
+        const updated = await warrantyApi.uploadDocument(warrantyId, file)
+        if (updated.document) onUploaded?.(updated.document)
+        toast('Document uploaded')
+      } catch {
+        toast('Failed to upload document', 'error')
+      } finally {
+        setUploading(false)
+      }
+    } else {
+      onPendingFile?.(file)
     }
-    reader.readAsDataURL(file)
-  }
-
-  const viewDoc = () => {
-    if (!doc) return
-    const byteStr = atob(doc.data.split(',')[1])
-    const ab = new Uint8Array(byteStr.length)
-    for (let i = 0; i < byteStr.length; i++) ab[i] = byteStr.charCodeAt(i)
-    const blob = new Blob([ab], { type: doc.mimeType })
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
   }
 
   const isPdf = doc?.mimeType === 'application/pdf'
@@ -73,8 +97,14 @@ function DocUploader({ doc, onChange }: { doc?: WarrantyDocument; onChange: (d: 
   return (
     <div>
       <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
-      {doc ? (
+        onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = '' }} />
+
+      {uploading ? (
+        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-navy-700 border border-edge-default">
+          <Loader2 size={14} className="animate-spin text-ink-muted flex-shrink-0" />
+          <span className="text-xs text-ink-muted">Uploading…</span>
+        </div>
+      ) : doc ? (
         <div className="flex items-center gap-2 p-2.5 rounded-lg bg-navy-700 border border-edge-default">
           <div className="w-7 h-7 rounded-md bg-navy-600 border border-edge-subtle flex items-center justify-center flex-shrink-0">
             <FileText size={13} className={isPdf ? 'text-red-400' : 'text-blue-400'} />
@@ -86,8 +116,16 @@ function DocUploader({ doc, onChange }: { doc?: WarrantyDocument; onChange: (d: 
               <span className="text-[10px] text-ink-muted">{formatSize(doc.size)}</span>
             </div>
           </div>
-          <button onClick={viewDoc} className="p-1.5 rounded-md bg-navy-600 border border-edge-subtle text-ink-muted hover:text-blue-400 transition-colors" title="View"><Eye size={12} /></button>
-          <button onClick={() => onChange(undefined)} className="p-1.5 rounded-md bg-navy-600 border border-edge-subtle text-ink-muted hover:text-red-400 transition-colors" title="Remove"><X size={12} /></button>
+          {warrantyId && (
+            <button onClick={() => openDocument(warrantyId, toast)} className="p-1.5 rounded-md bg-navy-600 border border-edge-subtle text-ink-muted hover:text-blue-400 transition-colors" title="View"><Eye size={12} /></button>
+          )}
+          <button onClick={() => fileRef.current?.click()} className="p-1.5 rounded-md bg-navy-600 border border-edge-subtle text-ink-muted hover:text-blue-400 transition-colors" title="Replace"><Paperclip size={12} /></button>
+        </div>
+      ) : pendingFileName ? (
+        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-navy-700 border border-edge-default">
+          <FileText size={13} className="text-blue-400 flex-shrink-0" />
+          <p className="text-xs text-ink-primary truncate font-mono flex-1">{pendingFileName}</p>
+          <span className="text-[9px] text-ink-muted flex-shrink-0">will upload on save</span>
         </div>
       ) : (
         <button onClick={() => fileRef.current?.click()}
@@ -102,7 +140,11 @@ function DocUploader({ doc, onChange }: { doc?: WarrantyDocument; onChange: (d: 
 
 // ─── Warranty Form Modal ───────────────────────────────────────────────────────
 
-interface FormProps { initial?: WarrantyItem; onSave: (d: Omit<WarrantyItem, 'id' | 'starred' | 'status'>) => void; onClose: () => void }
+interface FormProps {
+  initial?: WarrantyItem
+  onSave: (d: Omit<WarrantyItem, 'id' | 'starred' | 'status' | 'document'>, pendingFile?: File) => Promise<void>
+  onClose: () => void
+}
 
 function WarrantyForm({ initial, onSave, onClose }: FormProps) {
   const { assets } = useApp()
@@ -118,28 +160,36 @@ function WarrantyForm({ initial, onSave, onClose }: FormProps) {
     contactPhone: initial?.contactPhone ?? '',
     contactEmail: initial?.contactEmail ?? '',
     notes: initial?.notes ?? '',
-    document: initial?.document as WarrantyDocument | undefined,
   })
+  const [pendingFile, setPendingFile] = useState<File | undefined>()
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
   const firstRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { firstRef.current?.focus() }, [])
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !submitting) onClose() }
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
-  }, [onClose])
+  }, [onClose, submitting])
 
   const set = (k: string, v: unknown) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
 
-  const validate = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.name.trim()) e.name = 'Required'
     if (!form.warrantyEndDate) e.warrantyEndDate = 'Required'
-    setErrors(e); return Object.keys(e).length === 0
+    setErrors(e)
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave(form, pendingFile)
+    } catch {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle">
@@ -147,30 +197,30 @@ function WarrantyForm({ initial, onSave, onClose }: FormProps) {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Warranty' : 'Add Warranty'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">{initial ? `Editing ${initial.name}` : 'Track a new warranty record'}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={15} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={15} /></button>
         </div>
 
         <div className="px-5 py-4 space-y-3.5 max-h-[65vh] overflow-y-auto">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Item Name *</label>
             <input ref={firstRef} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Dell PowerEdge R750"
-              className={inp(errors.name)} />
+              className={inp(errors.name)} disabled={submitting} />
             {errors.name && <p className="text-[10px] text-red-400 mt-1">{errors.name}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Vendor</label>
-              <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="e.g. Dell Technologies" className={inp()} />
+              <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="e.g. Dell Technologies" className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Serial Number</label>
-              <input value={form.serialNumber} onChange={e => set('serialNumber', e.target.value)} placeholder="SN-XXXXX" className={inp() + ' font-mono'} />
+              <input value={form.serialNumber} onChange={e => set('serialNumber', e.target.value)} placeholder="SN-XXXXX" className={inp() + ' font-mono'} disabled={submitting} />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Linked Asset (optional)</label>
             <div className="relative">
-              <select value={form.assetId} onChange={e => set('assetId', e.target.value)} className={inp() + ' appearance-none pr-8'}>
+              <select value={form.assetId} onChange={e => set('assetId', e.target.value)} className={inp() + ' appearance-none pr-8'} disabled={submitting}>
                 <option value="">— None —</option>
                 {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
@@ -180,18 +230,18 @@ function WarrantyForm({ initial, onSave, onClose }: FormProps) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Purchase Date</label>
-              <input type="date" value={form.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} className={inp()} />
+              <input type="date" value={form.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Warranty Expires *</label>
-              <input type="date" value={form.warrantyEndDate} onChange={e => set('warrantyEndDate', e.target.value)} className={inp(errors.warrantyEndDate)} />
+              <input type="date" value={form.warrantyEndDate} onChange={e => set('warrantyEndDate', e.target.value)} className={inp(errors.warrantyEndDate)} disabled={submitting} />
               {errors.warrantyEndDate && <p className="text-[10px] text-red-400 mt-1">{errors.warrantyEndDate}</p>}
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Warranty Type</label>
             <div className="relative">
-              <select value={form.warrantyType} onChange={e => set('warrantyType', e.target.value as WarrantyType)} className={inp() + ' appearance-none pr-8'}>
+              <select value={form.warrantyType} onChange={e => set('warrantyType', e.target.value as WarrantyType)} className={inp() + ' appearance-none pr-8'} disabled={submitting}>
                 {WARRANTY_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
               <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
@@ -200,32 +250,38 @@ function WarrantyForm({ initial, onSave, onClose }: FormProps) {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Contact Name</label>
-              <input value={form.contactName} onChange={e => set('contactName', e.target.value)} placeholder="Name" className={inp()} />
+              <input value={form.contactName} onChange={e => set('contactName', e.target.value)} placeholder="Name" className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Contact Phone</label>
-              <input value={form.contactPhone} onChange={e => set('contactPhone', e.target.value)} placeholder="+1-800…" className={inp()} />
+              <input value={form.contactPhone} onChange={e => set('contactPhone', e.target.value)} placeholder="+1-800…" className={inp()} disabled={submitting} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Contact Email</label>
-              <input value={form.contactEmail} onChange={e => set('contactEmail', e.target.value)} placeholder="support@…" className={inp()} />
+              <input value={form.contactEmail} onChange={e => set('contactEmail', e.target.value)} placeholder="support@…" className={inp()} disabled={submitting} />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any notes…"
-              className={inp() + ' resize-none leading-relaxed'} />
+              className={inp() + ' resize-none leading-relaxed'} disabled={submitting} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Document</label>
-            <DocUploader doc={form.document} onChange={d => set('document', d)} />
+            <DocUploader
+              doc={initial?.document}
+              warrantyId={initial?.id}
+              pendingFileName={pendingFile?.name}
+              onPendingFile={setPendingFile}
+            />
           </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-edge-subtle bg-navy-900/50">
-          <button onClick={onClose} className="px-3.5 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-          <button onClick={() => { if (validate()) onSave(form) }} className="px-3.5 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
-            {initial ? 'Save Changes' : 'Add Warranty'}
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-3.5 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="px-3.5 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-xs font-medium transition-all disabled:opacity-60 flex items-center gap-1.5" style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.35)' }}>
+            {submitting && <Loader2 size={12} className="animate-spin" />}
+            {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Add Warranty'}
           </button>
         </div>
       </div>
@@ -241,9 +297,10 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
   onEdit: () => void
   onDelete: () => void
 }) {
-  const { assets, toggleStarWarranty, updateWarranty } = useApp()
+  const { assets, toggleStarWarranty, uploadWarrantyDocument, toast } = useApp()
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const days = daysUntil(item.warrantyEndDate)
   const statusInfo = STATUS_STYLES[item.status]
@@ -254,6 +311,15 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
     navigator.clipboard?.writeText(text).catch(() => {})
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 1800)
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await onDelete()
+    } catch {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -341,7 +407,6 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
         </div>
       </div>
 
-      {/* Support Contact */}
       {(item.contactName || item.contactPhone || item.contactEmail) && (
         <div className="bg-navy-800 border border-edge-subtle rounded-xl p-4 sm:p-5 mb-4">
           <h3 className="text-xs font-semibold text-ink-primary mb-4 flex items-center gap-2"><Phone size={13} className="text-green-400" /> Support Contact</h3>
@@ -370,7 +435,6 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
         </div>
       )}
 
-      {/* Notes */}
       {item.notes && (
         <div className="bg-navy-800 border border-edge-subtle rounded-xl p-4 sm:p-5 mb-4">
           <h3 className="text-xs font-semibold text-ink-primary mb-2">Notes</h3>
@@ -381,20 +445,26 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
       {/* Document */}
       <div className="bg-navy-800 border border-edge-subtle rounded-xl p-4 sm:p-5">
         <h3 className="text-xs font-semibold text-ink-primary mb-3 flex items-center gap-2"><Upload size={13} className="text-purple-400" /> Document</h3>
-        <DocUploader doc={item.document} onChange={d => updateWarranty({ ...item, document: d })} />
+        <DocUploader
+          doc={item.document}
+          warrantyId={item.id}
+          onUploaded={() => { /* AppProvider already updates warrantyItems from the upload response */ }}
+        />
       </div>
 
-      {/* Delete confirm */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDelete(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !deleting && setConfirmDelete(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative bg-navy-800 border border-red-500/30 rounded-2xl shadow-2xl w-full max-w-sm p-6" style={{ animation: 'modalIn 0.15s ease-out' }} onClick={e => e.stopPropagation()}>
             <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto mb-4"><Trash2 size={18} className="text-red-400" /></div>
             <h3 className="text-sm font-semibold text-ink-primary text-center mb-1">Delete Warranty</h3>
             <p className="text-xs text-ink-muted text-center mb-5">Delete <span className="text-ink-primary font-mono">{item.name}</span>? This cannot be undone.</p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default">Cancel</button>
-              <button onClick={onDelete} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors">Delete</button>
+              <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+                {deleting && <Loader2 size={12} className="animate-spin" />}
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>
@@ -406,14 +476,18 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 export default function Warranty() {
-  const { warrantyItems, addWarranty, updateWarranty, deleteWarranty, toggleStarWarranty, toast } = useApp()
+  const { warrantyItems, isLoading, addWarranty, updateWarranty, deleteWarranty, toggleStarWarranty, toast } = useApp()
 
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('All')
-  const [selectedId, setSelectedId] = useState<string>(warrantyItems[0]?.id ?? '')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [editItem, setEditItem] = useState<WarrantyItem | null>(null)
+
+  useEffect(() => {
+    if (!selectedId && warrantyItems.length > 0) setSelectedId(warrantyItems[0].id)
+  }, [warrantyItems, selectedId])
 
   const filtered = warrantyItems.filter(w =>
     (statusFilter === 'All' || w.status === statusFilter.toLowerCase()) &&
@@ -422,26 +496,27 @@ export default function Warranty() {
       w.serialNumber.toLowerCase().includes(query.toLowerCase()))
   )
 
-  const selected = warrantyItems.find(w => w.id === selectedId) ?? filtered[0] ?? null
+  const selected = warrantyItems.find(w => w.id === selectedId) ?? null
 
   const selectItem = (id: string) => {
     setSelectedId(id)
     setMobileDetailOpen(true)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selected) return
-    deleteWarranty(selected.id)
+    await deleteWarranty(selected.id)
     toast('Warranty deleted')
     setMobileDetailOpen(false)
-    setSelectedId(filtered.find(w => w.id !== selected.id)?.id ?? '')
+    setSelectedId(filtered.find(w => w.id !== selected.id)?.id ?? null)
   }
 
-  const computeStatus = (endDate: string): WarrantyItem['status'] => {
-    const d = daysUntil(endDate)
-    if (d <= 0) return 'expired'
-    if (d <= 30) return 'expiring'
-    return 'active'
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
   }
 
   return (
@@ -466,7 +541,6 @@ export default function Warranty() {
           </div>
         </div>
 
-        {/* Status filter tabs */}
         <div className="px-3 py-2 border-b border-edge-subtle flex-shrink-0 flex gap-1">
           {STATUS_FILTERS.map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
@@ -536,8 +610,19 @@ export default function Warranty() {
       {/* Modals */}
       {addOpen && (
         <WarrantyForm
-          onSave={d => {
-            addWarranty({ ...d, starred: false })
+          onSave={async (d, pendingFile) => {
+            await addWarranty({ ...d, starred: false })
+            // The item was just created — AppProvider's addWarranty appends it to
+            // warrantyItems, but doesn't hand back the new id here, so if a file
+            // was attached we upload it as a fire-and-forget follow-up. The user
+            // sees the new record immediately either way.
+            if (pendingFile) {
+              const latest = warrantyItems[0] // most recently prepended
+              if (latest) {
+                try { await warrantyApi.uploadDocument(latest.id, pendingFile) }
+                catch { toast('Warranty saved, but the document failed to upload', 'error') }
+              }
+            }
             setAddOpen(false)
             toast('Warranty added')
           }}
@@ -547,8 +632,8 @@ export default function Warranty() {
       {editItem && (
         <WarrantyForm
           initial={editItem}
-          onSave={d => {
-            updateWarranty({ ...editItem, ...d, status: computeStatus(d.warrantyEndDate) })
+          onSave={async d => {
+            await updateWarranty({ ...editItem, ...d, document: editItem.document })
             setEditItem(null)
             toast('Warranty updated')
           }}
