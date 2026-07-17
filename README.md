@@ -1,3 +1,6 @@
+This is almost final readme. Need to finish implementing few more things in app, configure docker compose and proper env variables before full release
+
+
 # ITDocs
 
 ITDocs is a modern, self-hosted IT documentation platform designed for system administrators, IT departments, managed service providers, and anyone responsible for maintaining technical infrastructure.
