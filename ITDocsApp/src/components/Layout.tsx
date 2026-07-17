@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Shield, LayoutDashboard, Server, KeyRound, BookOpen,
   Network, CreditCard, Settings, ChevronLeft, ChevronRight,
@@ -11,6 +11,7 @@ import { useApp } from '../context/useApp'
 import { useAuth } from '../context/AuthContext'
 import type { Organization } from '../api/types'
 import { toggleTheme, getTheme } from '../lib/theme'
+import { buildSearchResults, type SearchResult } from '../lib/search'
 
 type NavSection = { label: string; items: { id: View; label: string; icon: React.ReactNode }[] }
 
@@ -332,17 +333,70 @@ function Sidebar({
 }
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
-
 export default function Layout({ currentView, navigate, onLogout, children }: Props) {
-  const { currentOrg, licenses } = useApp()
+  const {
+    currentOrg, licenses, assets, passwords, contacts, contracts, plans,
+    incidents, knowledgeArticles, tasks, groups, warrantyItems, subnets,
+  } = useApp()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
   const [theme, setThemeState] = useState(getTheme)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const expiring = licenses.filter(l => l.status === 'expiring' || l.status === 'expired').length
+
+  const results = buildSearchResults(
+    { assets, passwords, contacts, licenses, contracts, plans, incidents, knowledgeArticles, tasks, groups, warrantyItems, subnets },
+    searchQuery
+  )
+
+  // ⌘K / Ctrl+K opens search from anywhere; Escape closes it
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      } else if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [searchOpen])
+
+  // Focus the input and reset state each time the overlay opens
+  useEffect(() => {
+    if (searchOpen) {
+      setSearchQuery('')
+      setActiveIndex(0)
+      setTimeout(() => searchInputRef.current?.focus(), 0)
+    }
+  }, [searchOpen])
+
+  useEffect(() => { setActiveIndex(0) }, [searchQuery])
+
+  const openResult = (r: SearchResult) => {
+    navigate(r.view, r.targetId)
+    setSearchOpen(false)
+  }
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (results.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex(i => Math.min(i + 1, results.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      openResult(results[activeIndex])
+    }
+  }
 
   const sidebarProps = {
     currentView, navigate, onLogout,
@@ -460,25 +514,37 @@ export default function Layout({ currentView, navigate, onLogout, children }: Pr
           <div className="w-full max-w-xl bg-navy-800 border border-edge-strong rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-4 py-3 border-b border-edge-subtle">
               <Search size={16} className="text-ink-muted flex-shrink-0" />
-              <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 className="flex-1 bg-transparent text-ink-primary text-sm placeholder:text-ink-muted outline-none"
-                placeholder="Search assets, documents, passwords…" />
+                placeholder="Search assets, documents, passwords…"
+              />
               <button onClick={() => setSearchOpen(false)}><X size={14} className="text-ink-muted hover:text-ink-primary" /></button>
             </div>
-            <div className="p-2">
-              {[
-                { type: 'Asset', label: 'SRV-PROD-01', sub: 'Server · Production' },
-                { type: 'Doc', label: 'Network Topology 2024', sub: 'Documentation · Networks' },
-                { type: 'Password', label: 'AWS Root Account', sub: 'Passwords · Cloud' },
-              ].map((r, i) => (
-                <button key={i} onClick={() => setSearchOpen(false)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-navy-700 transition-colors text-left">
-                  <span className="text-[10px] font-mono bg-navy-600 text-ink-muted px-1.5 py-0.5 rounded flex-shrink-0">{r.type}</span>
-                  <div className="min-w-0">
-                    <p className="text-xs text-ink-primary">{r.label}</p>
-                    <p className="text-[10px] text-ink-muted">{r.sub}</p>
-                  </div>
-                </button>
-              ))}
+            <div className="p-2 max-h-[60vh] overflow-y-auto">
+              {searchQuery.trim().length < 2 ? (
+                <p className="px-3 py-8 text-center text-xs text-ink-muted">Type at least 2 characters to search</p>
+              ) : results.length === 0 ? (
+                <p className="px-3 py-8 text-center text-xs text-ink-muted">No results for "{searchQuery}"</p>
+              ) : (
+                results.map((r, i) => (
+                  <button
+                    key={r.id}
+                    onClick={() => openResult(r)}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${i === activeIndex ? 'bg-navy-700' : 'hover:bg-navy-700/60'}`}
+                  >
+                    <span className="text-[10px] font-mono bg-navy-600 text-ink-muted px-1.5 py-0.5 rounded flex-shrink-0">{r.type}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-ink-primary truncate">{r.label}</p>
+                      <p className="text-[10px] text-ink-muted truncate">{r.sub}</p>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>

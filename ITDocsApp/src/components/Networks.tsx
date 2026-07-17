@@ -5,41 +5,6 @@ import type { Subnet, IPEntry, IPEntryStatus, SubnetType } from '../api/types'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-function getSubnetTypeFromString(type: string){
-  let subnetType: SubnetType
-
-  switch(type.toUpperCase()){
-    case "LAN":
-      subnetType = "LAN"
-      break;
-
-    case "WAN":
-      subnetType = "WAN"
-      break;
-
-    case "DMZ":
-      subnetType = "DMZ"
-      break;
-    
-    case "MGMT":
-      subnetType = "MGMT"
-      break;
-    
-    case "VPN":
-      subnetType = "VPN"
-      break;
-
-    case "WLAN":
-      subnetType = "WLAN"
-      break;
-
-    default:
-      subnetType = "LAN"
-  }
-
-  return subnetType
-}
-
 const TYPE_CONFIG: Record<SubnetType, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
   LAN:  { color: 'text-blue-400',   bg: 'bg-blue-500/12 border-blue-500/25',    icon: <Network size={12} />, label: 'LAN' },
   DMZ:  { color: 'text-orange-400', bg: 'bg-orange-500/12 border-orange-500/25', icon: <Shield size={12} />,  label: 'DMZ' },
@@ -263,7 +228,7 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
   const [expanded, setExpanded] = useState(false)
   const [ipModal, setIPModal] = useState<{ open: boolean; initial?: IPEntry }>({ open: false })
   const [deletingIpId, setDeletingIpId] = useState<string | null>(null)
-  const tc = TYPE_CONFIG[getSubnetTypeFromString(subnet.type)]
+  const tc = TYPE_CONFIG[subnet.type]
   const usedCount = subnet.ips.filter(ip => ip.status === 'used').length
   const reservedCount = subnet.ips.filter(ip => ip.status === 'reserved').length
 
@@ -286,7 +251,7 @@ function SubnetRow({ subnet, assets, onEdit, onDelete, onAddIP, onEditIP, onDele
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-ink-primary">{subnet.name}</span>
-            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md border font-semibold ${tc.bg} ${tc.color}`}>{getSubnetTypeFromString(subnet.type)}</span>
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md border font-semibold ${tc.bg} ${tc.color}`}>{subnet.type}</span>
             {subnet.vlan != null && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-navy-700 text-ink-muted border border-edge-subtle">VLAN {subnet.vlan}</span>}
           </div>
           <div className="flex items-center gap-3 mt-0.5">

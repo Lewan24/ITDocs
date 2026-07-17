@@ -68,7 +68,19 @@ public class AppMappingProfile : Profile
 
         CreateMap<DiagramNode, DiagramNodeDto>();
         CreateMap<DiagramNodeDto, DiagramNode>();
-        CreateMap<DiagramEdge, DiagramEdgeDto>();
-        CreateMap<DiagramEdgeDto, DiagramEdge>();
+
+        CreateMap<DiagramEdge, DiagramEdgeDto>()
+            .ConstructUsing(s => new DiagramEdgeDto(s.Id, s.SourceNodeId, s.TargetNodeId, s.Label, s.ConnectionType));
+
+        CreateMap<DiagramEdgeDto, DiagramEdge>()
+            .ConstructUsing(s => new DiagramEdge
+            {
+                Id = s.Id,
+                SourceNodeId = s.Source,
+                TargetNodeId = s.Target,
+                Label = s.Label,
+                ConnectionType = s.ConnectionType,
+                // OrganizationId is set explicitly by the controller after mapping — leave default here
+            });
     }
 }

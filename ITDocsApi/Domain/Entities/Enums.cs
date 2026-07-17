@@ -10,15 +10,40 @@ public enum AssetStatus
     [JsonStringEnumMemberName("maintenance")] Maintenance,
     [JsonStringEnumMemberName("unknown")] Unknown
 }
-public enum PasswordStrength { Strong, Medium, Weak }
-public enum IPEntryStatus { Used, Reserved, Free }
+
+public enum PasswordStrength
+{
+    [JsonStringEnumMemberName("strong")] Strong, 
+    [JsonStringEnumMemberName("medium")] Medium,
+    [JsonStringEnumMemberName("weak")] Weak
+}
+
+public enum IPEntryStatus
+{
+    [JsonStringEnumMemberName("used")] Used, 
+    [JsonStringEnumMemberName("reserved")] Reserved, 
+    [JsonStringEnumMemberName("free")] Free
+}
 public enum SubnetType { LAN, DMZ, WAN, WLAN, MGMT, VPN }
 public enum LicenseType { Subscription, Perpetual, OEM, Volume, Trial }
 public enum LicenseCategory { Software, OS, Antivirus, Domain, Cloud, Security, Office, Virtualization, Backup, Monitoring, Other }
-public enum LicenseStatus { Active, Expiring, Expired, Inactive }
+
+public enum LicenseStatus
+{
+    [JsonStringEnumMemberName("active")] Active,
+    [JsonStringEnumMemberName("expiring")] Expiring,
+    [JsonStringEnumMemberName("expired")] Expired, 
+    [JsonStringEnumMemberName("inactive")] Inactive
+}
 public enum ContractCategory { Service, Support, Maintenance, Lease, NDA, SLA, Software, Other }
 public enum ContractStatus { Active, Expiring, Expired, Draft }
-public enum Priority { High, Medium, Low }
+
+public enum Priority
+{
+    [JsonStringEnumMemberName("high")] High,
+    [JsonStringEnumMemberName("medium")] Medium, 
+    [JsonStringEnumMemberName("low")] Low
+}
 
 public enum PlanStatus
 {
@@ -31,8 +56,22 @@ public enum PlanStatus
     [JsonStringEnumMemberName("cancelled")]
     Cancelled
 }
-public enum IncidentSeverity { Critical, High, Medium, Low }
-public enum IncidentStatus { Open, Investigating, Resolved, Closed }
+
+public enum IncidentSeverity
+{
+    [JsonStringEnumMemberName("critical")] Critical,
+    [JsonStringEnumMemberName("high")] High,
+    [JsonStringEnumMemberName("medium")] Medium,
+    [JsonStringEnumMemberName("low")] Low
+}
+
+public enum IncidentStatus
+{
+    [JsonStringEnumMemberName("open")] Open,
+    [JsonStringEnumMemberName("investigating")] Investigating,
+    [JsonStringEnumMemberName("resolved")] Resolved,
+    [JsonStringEnumMemberName("closed")] Closed
+}
 
 public enum WorkTaskStatus
 {
@@ -55,5 +94,27 @@ public enum GroupType
 }
 public enum WarrantyType { Standard, Extended, OnSiteNbd, CarryIn, MailIn, Other }
 public enum WarrantyStatus { Active, Expiring, Expired }
-public enum DiagramDeviceType { Server, Firewall, Switch, Router, Workstation, Ap, Storage, Cloud, Internet, Printer, Custom }
-public enum DiagramConnectionType { Ethernet, Fiber, Wireless, Vpn, Wan }
+
+public enum DiagramDeviceType
+{
+    [JsonStringEnumMemberName("server")] Server,
+    [JsonStringEnumMemberName("firewall")] Firewall,
+    [JsonStringEnumMemberName("switch")] Switch,
+    [JsonStringEnumMemberName("router")] Router,
+    [JsonStringEnumMemberName("workstation")] Workstation,
+    [JsonStringEnumMemberName("ap")] Ap,
+    [JsonStringEnumMemberName("storage")] Storage,
+    [JsonStringEnumMemberName("cloud")] Cloud,
+    [JsonStringEnumMemberName("internet")] Internet,
+    [JsonStringEnumMemberName("printer")] Printer,
+    [JsonStringEnumMemberName("custom")] Custom
+}
+
+public enum DiagramConnectionType
+{
+    [JsonStringEnumMemberName("ethernet")] Ethernet,
+    [JsonStringEnumMemberName("fiber")] Fiber,
+    [JsonStringEnumMemberName("wireless")] Wireless,
+    [JsonStringEnumMemberName("vpn")] Vpn,
+    [JsonStringEnumMemberName("wan")] Wan
+}

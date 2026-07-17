@@ -1143,10 +1143,17 @@ public class DiagramController(AppDbContext db, IMapper mapper, ICurrentUserCont
         var check = await CheckWriteAccessAsync(organizationId);
         if (check is not null) return check;
 
+        await using var tx = await Db.Database.BeginTransactionAsync();
+
         var existingNodes = await Db.DiagramNodes.Where(n => n.OrganizationId == organizationId).ToListAsync();
         var existingEdges = await Db.DiagramEdges.Where(e => e.OrganizationId == organizationId).ToListAsync();
         Db.DiagramEdges.RemoveRange(existingEdges);
         Db.DiagramNodes.RemoveRange(existingNodes);
+        await Db.SaveChangesAsync();
+        // ^ flush deletes first — this detaches the removed entities from the
+        // change tracker, so re-adding entities with the same PKs below doesn't
+        // collide with them in EF's identity map (the actual cause of the
+        // "association has been severed" error with same-key delete+recreate).
 
         var nodes = mapper.Map<List<DiagramNode>>(dto.Nodes);
         nodes.ForEach(n => n.OrganizationId = organizationId);
@@ -1156,6 +1163,8 @@ public class DiagramController(AppDbContext db, IMapper mapper, ICurrentUserCont
         Db.DiagramNodes.AddRange(nodes);
         Db.DiagramEdges.AddRange(edges);
         await Db.SaveChangesAsync();
+
+        await tx.CommitAsync();
         return NoContent();
     }
 }

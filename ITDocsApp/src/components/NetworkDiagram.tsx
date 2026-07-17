@@ -36,6 +36,7 @@ import {
   Download,
   X,
   ChevronRight,
+  Loader2,
 } from 'lucide-react'
 import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/useApp'
@@ -44,7 +45,7 @@ import type {
   DiagramEdge,
   DiagramDeviceType,
   DiagramConnectionType,
-} from '../context/AuthContext'
+} from '../api/types'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -627,6 +628,7 @@ interface ToolbarProps {
   onSave: () => void
   onClear: () => void
   isMobile: boolean
+  saving: boolean
 }
 
 function Toolbar({
@@ -637,6 +639,7 @@ function Toolbar({
   onSave,
   onClear,
   isMobile,
+  saving,
 }: ToolbarProps) {
   const [showDevices, setShowDevices] = useState(true)
   const [showConnections, setShowConnections] = useState(true)
@@ -802,21 +805,25 @@ function Toolbar({
       <div style={{ padding: isMobile ? '6px 10px' : '10px 14px', borderTop: '1px solid #1e2a3a', display: 'flex', gap: 6, flexShrink: 0 }}>
         <button
           onClick={onSave}
+          disabled={saving}
           style={{
             flex: 1, background: '#2563eb', border: 'none', borderRadius: 6,
             padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 600,
+            cursor: saving ? 'default' : 'pointer', color: '#fff', fontSize: 11, fontWeight: 600,
+            opacity: saving ? 0.7 : 1,
           }}
         >
-          <Save size={13} />
-          Save
+          {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+          {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           onClick={onClear}
+          disabled={saving}
           style={{
             background: '#131920', border: '1px solid #ef444444', borderRadius: 6,
             padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            cursor: 'pointer', color: '#ef4444', fontSize: 11,
+            cursor: saving ? 'default' : 'pointer', color: '#ef4444', fontSize: 11,
+            opacity: saving ? 0.6 : 1,
           }}
           title="Clear all"
         >
@@ -878,11 +885,14 @@ function assetTypeToDeviceType(assetType: string): DiagramDeviceType {
 }
 
 // ─── Main Inner Component ─────────────────────────────────────────────────────
+// Only ever mounted once diagramNodes/diagramEdges have actually loaded from
+// the API (see the isLoading gate in NetworkDiagram below) — so the one-time
+// useMemo() seed below is safe and won't freeze on an empty diagram.
 
 function NetworkDiagramInner() {
   const { diagramNodes, diagramEdges, saveDiagram, assets, toast } = useApp()
 
-  // Convert context → RF format
+  // Convert context → RF format (safe: component only mounts after data has loaded)
   const initialNodes = useMemo(() => diagramNodes.map(rfNodeFromDiagram), []) // eslint-disable-line react-hooks/exhaustive-deps
   const initialEdges = useMemo(() => diagramEdges.map(rfEdgeFromDiagram), []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -897,6 +907,9 @@ function NetworkDiagramInner() {
 
   // Connection type for new edges
   const [selectedConnectionType, setSelectedConnectionType] = useState<DiagramConnectionType>('ethernet')
+
+  // Save state — surfaced in the toolbar's Save button
+  const [saving, setSaving] = useState(false)
 
   // Responsive
   const containerRef = useRef<HTMLDivElement>(null)
@@ -915,33 +928,8 @@ function NetworkDiagramInner() {
   // Debounced auto-save
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const triggerSave = useCallback((rfNodes: Node[], rfEdges: Edge[]) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      const dn: DiagramNode[] = rfNodes.map(n => ({
-        id: n.id,
-        deviceType: (n.data.deviceType as DiagramDeviceType) ?? 'custom',
-        label: (n.data.label as string) ?? '',
-        ip: n.data.ip as string | undefined,
-        color: n.data.color as string | undefined,
-        assetId: n.data.assetId as string | undefined,
-        x: n.position.x,
-        y: n.position.y,
-      }))
-      const de: DiagramEdge[] = rfEdges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        label: e.label as string | undefined,
-        connectionType: ((e.data as Record<string, unknown>)?.connectionType as DiagramConnectionType) ?? 'ethernet',
-      }))
-      saveDiagram(dn, de)
-    }, 1500)
-  }, [saveDiagram])
-
-  const manualSave = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    const dn: DiagramNode[] = nodes.map(n => ({
+  const doSave = useCallback(async (rfNodes: Node[], rfEdges: Edge[]) => {
+    const dn: DiagramNode[] = rfNodes.map(n => ({
       id: n.id,
       deviceType: (n.data.deviceType as DiagramDeviceType) ?? 'custom',
       label: (n.data.label as string) ?? '',
@@ -951,16 +939,36 @@ function NetworkDiagramInner() {
       x: n.position.x,
       y: n.position.y,
     }))
-    const de: DiagramEdge[] = edges.map(e => ({
+    const de: DiagramEdge[] = rfEdges.map(e => ({
       id: e.id,
       source: e.source,
       target: e.target,
       label: e.label as string | undefined,
       connectionType: ((e.data as Record<string, unknown>)?.connectionType as DiagramConnectionType) ?? 'ethernet',
     }))
-    saveDiagram(dn, de)
+    setSaving(true)
+    try {
+      await saveDiagram(dn, de)
+    } catch {
+      // error toast already fired by AppProvider's guarded wrapper — nothing
+      // further to do here; local canvas state is unaffected either way
+    } finally {
+      setSaving(false)
+    }
+  }, [saveDiagram])
+
+  const triggerSave = useCallback((rfNodes: Node[], rfEdges: Edge[]) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      void doSave(rfNodes, rfEdges)
+    }, 1500)
+  }, [doSave])
+
+  const manualSave = useCallback(async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    await doSave(nodes, edges)
     toast('Diagram saved', 'success')
-  }, [nodes, edges, saveDiagram, toast])
+  }, [nodes, edges, doSave, toast])
 
   // Handle node changes with auto-save trigger
   const handleNodesChange = useCallback((changes: Parameters<typeof onNodesChange>[0]) => {
@@ -1105,12 +1113,21 @@ function NetworkDiagramInner() {
   }, [selectedEdgeId, deleteSelectedEdge])
 
   // Clear all
-  const handleClear = useCallback(() => {
+  const handleClear = useCallback(async () => {
     if (!window.confirm('Clear all nodes and edges from the diagram?')) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
     setNodes([])
     setEdges([])
-    saveDiagram([], [])
-    toast('Diagram cleared', 'info')
+    setSaving(true)
+    try {
+      await saveDiagram([], [])
+      toast('Diagram cleared', 'info')
+    } catch {
+      // error toast already fired by AppProvider — canvas is already cleared
+      // locally, which matches user intent even if the persist failed
+    } finally {
+      setSaving(false)
+    }
   }, [setNodes, setEdges, saveDiagram, toast])
 
   const nodeTypes = useMemo(() => ({ device: DeviceNode }), [])
@@ -1140,6 +1157,7 @@ function NetworkDiagramInner() {
         onSave={manualSave}
         onClear={handleClear}
         isMobile={isMobile}
+        saving={saving}
       />
 
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -1252,6 +1270,19 @@ function NetworkDiagramInner() {
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export default function NetworkDiagram() {
+  const { isLoading } = useApp()
+
+  // NetworkDiagramInner seeds its React Flow state from diagramNodes/diagramEdges
+  // exactly once (useMemo with empty deps) — mounting it before the API fetch
+  // resolves would permanently freeze the canvas empty, so gate on isLoading here.
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', background: '#070b10' }}>
+        <Loader2 size={24} className="animate-spin" style={{ color: '#5c7080' }} />
+      </div>
+    )
+  }
+
   return (
     <ReactFlowProvider>
       <NetworkDiagramInner />
