@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import {
   Plus, X, Edit2, Trash2, Calendar,
-  User, CheckSquare, ChevronRight, ChevronLeft,
+  User, CheckSquare, ChevronRight, ChevronLeft, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Task, Priority, TaskStatus } from '../context/AuthContext'
+import type { Task, Priority, TaskStatus } from '../api/types'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low']
 const STATUSES: TaskStatus[] = ['todo', 'in-progress', 'done']
@@ -27,15 +27,15 @@ function isOverdue(dueDate: string) {
 }
 
 const inp = (err?: string) =>
-  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 
 // ─── Task Modal ───────────────────────────────────────────────────────────────
 
 function TaskModal({ initial, onClose, onSave, onDelete }: {
   initial?: Task
   onClose: () => void
-  onSave: (t: Omit<Task, 'id' | 'createdAt'>) => void
-  onDelete?: () => void
+  onSave: (t: Omit<Task, 'id' | 'createdAt'>) => Promise<void>
+  onDelete?: () => Promise<void>
 }) {
   const [form, setForm] = useState({
     title: initial?.title ?? '',
@@ -48,30 +48,49 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const set = (k: string, v: string) => {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: '' }))
   }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.title.trim()) e.title = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({
-      title: form.title.trim(),
-      description: form.description.trim(),
-      priority: form.priority as Priority,
-      status: form.status as TaskStatus,
-      assignee: form.assignee.trim(),
-      dueDate: form.dueDate,
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-    })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        title: form.title.trim(),
+        description: form.description.trim(),
+        priority: form.priority as Priority,
+        status: form.status as TaskStatus,
+        assignee: form.assignee.trim(),
+        dueDate: form.dueDate,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+      })
+    } catch {
+      setSubmitting(false)
+    }
   }
 
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete()
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const busy = submitting || deleting
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
         style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
@@ -80,29 +99,29 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Task' : 'Add Task'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">IT task or action item</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !busy && onClose()} disabled={busy} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Title *</label>
-            <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Replace firewall firmware" className={inp(errors.title)} autoFocus />
+            <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Replace firewall firmware" className={inp(errors.title)} autoFocus disabled={busy} />
             {errors.title && <p className="text-[10px] text-red-400 mt-1">{errors.title}</p>}
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
             <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2}
-              placeholder="Optional details about this task…" className={inp() + ' resize-none'} />
+              placeholder="Optional details about this task…" className={inp() + ' resize-none'} disabled={busy} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Priority</label>
-              <select value={form.priority} onChange={e => set('priority', e.target.value)} className={inp()}>
+              <select value={form.priority} onChange={e => set('priority', e.target.value)} className={inp()} disabled={busy}>
                 {PRIORITIES.map(p => <option key={p} value={p}>{PRIORITY_CONFIG[p].label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className={inp()}>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={inp()} disabled={busy}>
                 {STATUSES.map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
               </select>
             </div>
@@ -110,16 +129,16 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Assignee</label>
-              <input value={form.assignee} onChange={e => set('assignee', e.target.value)} placeholder="John Doe" className={inp()} />
+              <input value={form.assignee} onChange={e => set('assignee', e.target.value)} placeholder="John Doe" className={inp()} disabled={busy} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Due Date</label>
-              <input type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} className={inp()} />
+              <input type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} className={inp()} disabled={busy} />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Tags (comma-separated)</label>
-            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="network, security, maintenance" className={inp()} />
+            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="network, security, maintenance" className={inp()} disabled={busy} />
           </div>
         </div>
         <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/40">
@@ -127,20 +146,23 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
             confirmDelete ? (
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-ink-muted">Delete this task?</span>
-                <button onClick={onDelete} className="text-[11px] text-red-400 hover:text-red-300 font-medium">Yes</button>
-                <button onClick={() => setConfirmDelete(false)} className="text-[11px] text-ink-muted">No</button>
+                <button onClick={handleDelete} disabled={deleting} className="text-[11px] text-red-400 hover:text-red-300 font-medium disabled:opacity-50 flex items-center gap-1">
+                  {deleting && <Loader2 size={10} className="animate-spin" />} Yes
+                </button>
+                <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="text-[11px] text-ink-muted disabled:opacity-50">No</button>
               </div>
             ) : (
-              <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-400 transition-colors">
+              <button onClick={() => setConfirmDelete(true)} disabled={busy} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-400 transition-colors disabled:opacity-40">
                 <Trash2 size={12} /> Delete
               </button>
             )
           ) : <div />}
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-            <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95"
+            <button onClick={() => !busy && onClose()} disabled={busy} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+            <button onClick={submit} disabled={busy} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
               style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-              {initial ? 'Save Changes' : 'Add Task'}
+              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Add Task'}
             </button>
           </div>
         </div>
@@ -217,23 +239,23 @@ function TaskCard({ task, onEdit, onMove }: {
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export default function Tasks() {
-  const { tasks, addTask, updateTask, deleteTask } = useApp()
+  const { tasks, isLoading, addTask, updateTask, deleteTask } = useApp()
   const [modal, setModal] = useState<{ open: boolean; initial?: Task }>({ open: false })
   const [mobileStatus, setMobileStatus] = useState<TaskStatus>('todo')
 
   const byStatus = (s: TaskStatus) => tasks.filter(t => t.status === s)
 
-  const handleSave = (data: Omit<Task, 'id' | 'createdAt'>) => {
+  const handleSave = async (data: Omit<Task, 'id' | 'createdAt'>) => {
     if (modal.initial) {
-      updateTask({ ...modal.initial, ...data })
+      await updateTask({ ...modal.initial, ...data })
     } else {
-      addTask(data)
+      await addTask(data)
     }
     setModal({ open: false })
   }
 
-  const handleDelete = (id: string) => {
-    deleteTask(id)
+  const handleDelete = async (id: string) => {
+    await deleteTask(id)
     setModal({ open: false })
   }
 
@@ -257,6 +279,14 @@ export default function Tasks() {
           <p className={`text-xs font-semibold ${colCls[s]}`}>{STATUS_CONFIG[s].label}</p>
           <span className="text-[10px] font-mono text-ink-muted bg-navy-700 border border-edge-subtle px-1.5 py-0.5 rounded-full">{count}</span>
         </div>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
       </div>
     )
   }

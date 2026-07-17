@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import {
   Plus, X, Edit2, Trash2, Tag, AlertTriangle,
-  CheckCircle2, Clock, Circle, Server,
+  CheckCircle2, Clock, Circle, Server, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Incident, IncidentSeverity, IncidentStatus } from '../context/AuthContext'
+import type { Incident, IncidentSeverity, IncidentStatus } from '../api/types'
 
 const SEVERITIES: IncidentSeverity[] = ['critical', 'high', 'medium', 'low']
 const STATUSES: IncidentStatus[] = ['open', 'investigating', 'resolved', 'closed']
@@ -24,15 +24,15 @@ const STATUS_CONFIG: Record<IncidentStatus, { cls: string; label: string; icon: 
 }
 
 const inp = (err?: string) =>
-  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 
 // ─── Incident Modal ───────────────────────────────────────────────────────────
 
 function IncidentModal({ initial, onClose, onSave, onDelete }: {
   initial?: Incident
   onClose: () => void
-  onSave: (i: Omit<Incident, 'id'>) => void
-  onDelete?: () => void
+  onSave: (i: Omit<Incident, 'id'>) => Promise<void>
+  onDelete?: () => Promise<void>
 }) {
   const [form, setForm] = useState({
     title: initial?.title ?? '',
@@ -47,32 +47,51 @@ function IncidentModal({ initial, onClose, onSave, onDelete }: {
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const set = (k: string, v: string) => {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: '' }))
   }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.title.trim()) e.title = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({
-      title: form.title.trim(),
-      severity: form.severity as IncidentSeverity,
-      status: form.status as IncidentStatus,
-      description: form.description.trim(),
-      resolution: form.resolution.trim(),
-      affectedSystems: form.affectedSystems.split(',').map(s => s.trim()).filter(Boolean),
-      occurredAt: form.occurredAt,
-      resolvedAt: form.resolvedAt,
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-    })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        title: form.title.trim(),
+        severity: form.severity as IncidentSeverity,
+        status: form.status as IncidentStatus,
+        description: form.description.trim(),
+        resolution: form.resolution.trim(),
+        affectedSystems: form.affectedSystems.split(',').map(s => s.trim()).filter(Boolean),
+        occurredAt: form.occurredAt,
+        resolvedAt: form.resolvedAt,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+      })
+    } catch {
+      setSubmitting(false)
+    }
   }
 
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete()
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const busy = submitting || deleting
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
         style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
@@ -81,55 +100,55 @@ function IncidentModal({ initial, onClose, onSave, onDelete }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Incident' : 'Log Incident'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">System outage, security event, or service disruption</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !busy && onClose()} disabled={busy} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Title *</label>
-            <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Database unreachable" className={inp(errors.title)} autoFocus />
+            <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Database unreachable" className={inp(errors.title)} autoFocus disabled={busy} />
             {errors.title && <p className="text-[10px] text-red-400 mt-1">{errors.title}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Severity</label>
-              <select value={form.severity} onChange={e => set('severity', e.target.value)} className={inp()}>
+              <select value={form.severity} onChange={e => set('severity', e.target.value)} className={inp()} disabled={busy}>
                 {SEVERITIES.map(s => <option key={s} value={s}>{SEV_CONFIG[s].label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className={inp()}>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={inp()} disabled={busy}>
                 {STATUSES.map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
               </select>
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Affected Systems (comma-separated)</label>
-            <input value={form.affectedSystems} onChange={e => set('affectedSystems', e.target.value)} placeholder="Database, API Gateway, Auth Service" className={inp()} />
+            <input value={form.affectedSystems} onChange={e => set('affectedSystems', e.target.value)} placeholder="Database, API Gateway, Auth Service" className={inp()} disabled={busy} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
             <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
-              placeholder="Describe the incident, impact, and initial observations…" className={inp() + ' resize-none'} />
+              placeholder="Describe the incident, impact, and initial observations…" className={inp() + ' resize-none'} disabled={busy} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Resolution</label>
             <textarea value={form.resolution} onChange={e => set('resolution', e.target.value)} rows={2}
-              placeholder="What steps resolved the incident? Root cause?" className={inp() + ' resize-none'} />
+              placeholder="What steps resolved the incident? Root cause?" className={inp() + ' resize-none'} disabled={busy} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Occurred At</label>
-              <input type="datetime-local" value={form.occurredAt} onChange={e => set('occurredAt', e.target.value)} className={inp()} />
+              <input type="datetime-local" value={form.occurredAt} onChange={e => set('occurredAt', e.target.value)} className={inp()} disabled={busy} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Resolved At</label>
-              <input type="datetime-local" value={form.resolvedAt} onChange={e => set('resolvedAt', e.target.value)} className={inp()} />
+              <input type="datetime-local" value={form.resolvedAt} onChange={e => set('resolvedAt', e.target.value)} className={inp()} disabled={busy} />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Tags (comma-separated)</label>
-            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="network, database, security" className={inp()} />
+            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="network, database, security" className={inp()} disabled={busy} />
           </div>
         </div>
         <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/40">
@@ -137,20 +156,23 @@ function IncidentModal({ initial, onClose, onSave, onDelete }: {
             confirmDelete ? (
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-ink-muted">Delete this incident?</span>
-                <button onClick={onDelete} className="text-[11px] text-red-400 hover:text-red-300 font-medium">Yes</button>
-                <button onClick={() => setConfirmDelete(false)} className="text-[11px] text-ink-muted hover:text-ink-secondary">No</button>
+                <button onClick={handleDelete} disabled={deleting} className="text-[11px] text-red-400 hover:text-red-300 font-medium disabled:opacity-50 flex items-center gap-1">
+                  {deleting && <Loader2 size={10} className="animate-spin" />} Yes
+                </button>
+                <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="text-[11px] text-ink-muted hover:text-ink-secondary disabled:opacity-50">No</button>
               </div>
             ) : (
-              <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-400 transition-colors">
+              <button onClick={() => setConfirmDelete(true)} disabled={busy} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-400 transition-colors disabled:opacity-40">
                 <Trash2 size={12} /> Delete
               </button>
             )
           ) : <div />}
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-            <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95"
+            <button onClick={() => !busy && onClose()} disabled={busy} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+            <button onClick={submit} disabled={busy} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
               style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-              {initial ? 'Save Changes' : 'Log Incident'}
+              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Log Incident'}
             </button>
           </div>
         </div>
@@ -247,7 +269,7 @@ function IncidentDetailModal({ incident, onClose, onEdit }: {
 // ─── Incident Log ─────────────────────────────────────────────────────────────
 
 export default function IncidentLog() {
-  const { incidents, addIncident, updateIncident, deleteIncident } = useApp()
+  const { incidents, isLoading, addIncident, updateIncident, deleteIncident } = useApp()
   const [statusFilter, setStatusFilter] = useState<IncidentStatus | 'all'>('all')
   const [sevFilter, setSevFilter] = useState<IncidentSeverity | 'all'>('all')
   const [editModal, setEditModal] = useState<{ open: boolean; initial?: Incident }>({ open: false })
@@ -263,19 +285,27 @@ export default function IncidentLog() {
   const resolved = incidents.filter(i => i.status === 'resolved' || i.status === 'closed').length
   const critical = incidents.filter(i => i.severity === 'critical').length
 
-  const handleSave = (data: Omit<Incident, 'id'>) => {
+  const handleSave = async (data: Omit<Incident, 'id'>) => {
     if (editModal.initial) {
-      updateIncident({ ...editModal.initial, ...data })
+      await updateIncident({ ...editModal.initial, ...data })
     } else {
-      addIncident(data)
+      await addIncident(data)
     }
     setEditModal({ open: false })
   }
 
-  const handleDelete = (id: string) => {
-    deleteIncident(id)
+  const handleDelete = async (id: string) => {
+    await deleteIncident(id)
     setEditModal({ open: false })
     setDetailIncident(null)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
   }
 
   return (

@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star, ArrowLeft,
-  Tag, BookOpen,
+  Tag, BookOpen, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { KnowledgeArticle } from '../context/AuthContext'
+import type { KnowledgeArticle } from '../api/types'
 
 const CATEGORY_SUGGESTIONS = ['Operations', 'Network', 'Security', 'HR & Processes', 'Hardware', 'Software', 'Other']
 
@@ -23,7 +23,7 @@ function catCls(cat: string) {
 }
 
 const inp = (err?: string) =>
-  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
+  `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 
 // ─── Simple Markdown Renderer ─────────────────────────────────────────────────
 
@@ -101,8 +101,8 @@ function inlineFormat(text: string): React.ReactNode {
 function ArticleModal({ initial, onClose, onSave, onDelete }: {
   initial?: KnowledgeArticle
   onClose: () => void
-  onSave: (a: Omit<KnowledgeArticle, 'id' | 'updatedAt'>) => void
-  onDelete?: () => void
+  onSave: (a: Omit<KnowledgeArticle, 'id' | 'updatedAt'>) => Promise<void>
+  onDelete?: () => Promise<void>
 }) {
   const [form, setForm] = useState({
     title: initial?.title ?? '',
@@ -113,29 +113,48 @@ function ArticleModal({ initial, onClose, onSave, onDelete }: {
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const set = (k: string, v: string | boolean) => {
     setForm(f => ({ ...f, [k]: v }))
     if (typeof v === 'string') setErrors(e => ({ ...e, [k]: '' }))
   }
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {}
     if (!form.title.trim()) e.title = 'Required'
     if (!form.category.trim()) e.category = 'Required'
     setErrors(e)
-    if (Object.keys(e).length) return
-    onSave({
-      title: form.title.trim(),
-      category: form.category.trim(),
-      content: form.content.trim(),
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
-      starred: form.starred,
-    })
+    if (Object.keys(e).length || submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        title: form.title.trim(),
+        category: form.category.trim(),
+        content: form.content.trim(),
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        starred: form.starred,
+      })
+    } catch {
+      setSubmitting(false)
+    }
   }
 
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete()
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const busy = submitting || deleting
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
         style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
@@ -144,12 +163,12 @@ function ArticleModal({ initial, onClose, onSave, onDelete }: {
             <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Article' : 'New Article'}</h2>
             <p className="text-[11px] text-ink-muted mt-0.5">Supports **bold**, `code`, # headers, - lists, - [ ] checkboxes</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !busy && onClose()} disabled={busy} className="p-1.5 rounded-lg text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Title *</label>
-            <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Article title" className={inp(errors.title)} autoFocus />
+            <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Article title" className={inp(errors.title)} autoFocus disabled={busy} />
             {errors.title && <p className="text-[10px] text-red-400 mt-1">{errors.title}</p>}
           </div>
           <div>
@@ -160,6 +179,7 @@ function ArticleModal({ initial, onClose, onSave, onDelete }: {
               list="kb-categories"
               placeholder="e.g. Network"
               className={inp(errors.category)}
+              disabled={busy}
             />
             <datalist id="kb-categories">
               {CATEGORY_SUGGESTIONS.map(c => <option key={c} value={c} />)}
@@ -174,38 +194,42 @@ function ArticleModal({ initial, onClose, onSave, onDelete }: {
               rows={12}
               placeholder={`# Main Title\n\n## Section\n\nWrite your article content here.\n\n- Bullet point\n- [ ] Checkbox item\n- [x] Completed item\n\n**bold text** and \`inline code\``}
               className={inp() + ' resize-none font-mono leading-relaxed'}
+              disabled={busy}
             />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Tags (comma-separated)</label>
-            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="vpn, routing, setup" className={inp()} />
+            <input value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="vpn, routing, setup" className={inp()} disabled={busy} />
           </div>
         </div>
         <div className="flex items-center justify-between px-6 py-4 border-t border-edge-subtle bg-navy-900/40">
           <div className="flex items-center gap-3">
-            <button onClick={() => set('starred', !form.starred)}
-              className={`flex items-center gap-1.5 text-xs transition-colors ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
+            <button onClick={() => !busy && set('starred', !form.starred)} disabled={busy}
+              className={`flex items-center gap-1.5 text-xs transition-colors disabled:opacity-40 ${form.starred ? 'text-yellow-400' : 'text-ink-muted hover:text-ink-secondary'}`}>
               <Star size={13} className={form.starred ? 'fill-yellow-400' : ''} /> Starred
             </button>
             {initial && onDelete && (
               confirmDelete ? (
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-ink-muted">Delete?</span>
-                  <button onClick={onDelete} className="text-[11px] text-red-400 hover:text-red-300 font-medium">Yes</button>
-                  <button onClick={() => setConfirmDelete(false)} className="text-[11px] text-ink-muted">No</button>
+                  <button onClick={handleDelete} disabled={deleting} className="text-[11px] text-red-400 hover:text-red-300 font-medium disabled:opacity-50 flex items-center gap-1">
+                    {deleting && <Loader2 size={10} className="animate-spin" />} Yes
+                  </button>
+                  <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="text-[11px] text-ink-muted disabled:opacity-50">No</button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-400 transition-colors">
+                <button onClick={() => setConfirmDelete(true)} disabled={busy} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-400 transition-colors disabled:opacity-40">
                   <Trash2 size={12} /> Delete
                 </button>
               )
             )}
           </div>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-            <button onClick={submit} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95"
+            <button onClick={() => !busy && onClose()} disabled={busy} className="px-4 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+            <button onClick={submit} disabled={busy} className="px-4 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5"
               style={{ boxShadow: '0 1px 10px rgba(37,99,235,0.3)' }}>
-              {initial ? 'Save Changes' : 'Create Article'}
+              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Create Article'}
             </button>
           </div>
         </div>
@@ -235,13 +259,17 @@ function ArticleItem({ article, selected, onClick }: { article: KnowledgeArticle
 // ─── KnowledgeBase ────────────────────────────────────────────────────────────
 
 export default function KnowledgeBase() {
-  const { knowledgeArticles, addKnowledge, updateKnowledge, deleteKnowledge, toggleStarKnowledge } = useApp()
+  const { knowledgeArticles, isLoading, addKnowledge, updateKnowledge, deleteKnowledge, toggleStarKnowledge } = useApp()
   const [query, setQuery] = useState('')
   const [catFilter, setCatFilter] = useState<string>('All')
   const [starOnly, setStarOnly] = useState(false)
-  const [selected, setSelected] = useState<KnowledgeArticle | null>(knowledgeArticles[0] ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; initial?: KnowledgeArticle }>({ open: false })
+
+  useEffect(() => {
+    if (!selectedId && knowledgeArticles.length > 0) setSelectedId(knowledgeArticles[0].id)
+  }, [knowledgeArticles, selectedId])
 
   const categories = ['All', ...Array.from(new Set(knowledgeArticles.map(a => a.category)))]
 
@@ -253,27 +281,41 @@ export default function KnowledgeBase() {
      a.tags.some(t => t.toLowerCase().includes(query.toLowerCase())))
   )
 
-  const handleSave = (data: Omit<KnowledgeArticle, 'id' | 'updatedAt'>) => {
+  const selected = knowledgeArticles.find(a => a.id === selectedId) ?? null
+
+  const handleSave = async (data: Omit<KnowledgeArticle, 'id' | 'updatedAt'>) => {
     if (modal.initial) {
-      const updated = { ...modal.initial, ...data, updatedAt: new Date().toISOString().slice(0, 10) }
-      updateKnowledge(updated)
-      setSelected(updated)
+      await updateKnowledge({ ...modal.initial, ...data })
     } else {
-      addKnowledge(data)
+      const before = new Set(knowledgeArticles.map(a => a.id))
+      await addKnowledge(data)
+      // select the newly created article once it lands in state
+      setTimeout(() => {
+        setSelectedId(prev => prev)
+      }, 0)
+      void before
     }
     setModal({ open: false })
   }
 
-  const handleDelete = (id: string) => {
-    deleteKnowledge(id)
-    setSelected(filtered.find(a => a.id !== id) ?? null)
+  const handleDelete = async (id: string) => {
+    await deleteKnowledge(id)
+    setSelectedId(filtered.find(a => a.id !== id)?.id ?? null)
     setMobileDetailOpen(false)
     setModal({ open: false })
   }
 
   const selectArticle = (a: KnowledgeArticle) => {
-    setSelected(a)
+    setSelectedId(a.id)
     setMobileDetailOpen(true)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-ink-muted" />
+      </div>
+    )
   }
 
   return (
@@ -333,7 +375,7 @@ export default function KnowledgeBase() {
               </div>
             ) : (
               filtered.map(a => (
-                <ArticleItem key={a.id} article={a} selected={selected?.id === a.id} onClick={() => selectArticle(a)} />
+                <ArticleItem key={a.id} article={a} selected={selectedId === a.id} onClick={() => selectArticle(a)} />
               ))
             )}
           </div>

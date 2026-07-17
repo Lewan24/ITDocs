@@ -207,6 +207,34 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
         
         // ── Global tenant-isolation filter for every BaseEntity ──
         ApplyOrganizationQueryFilters(b);
+        ApplyUtcDateTimeConversion(b);
+    }
+
+// Postgres' timestamptz requires Kind=Utc on write. Rather than hunting down
+// every place a DateTime might end up Unspecified (default values, parsed
+// input, etc.), coerce every DateTime/DateTime? column through this converter.
+    private void ApplyUtcDateTimeConversion(ModelBuilder b)
+    {
+        var utcConverter = new ValueConverter<DateTime, DateTime>(
+            v => v.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        var utcNullableConverter = new ValueConverter<DateTime?, DateTime?>(
+            v => v.HasValue
+                ? (v.Value.Kind == DateTimeKind.Utc ? v.Value : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc))
+                : v,
+            v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        foreach (var entityType in b.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime))
+                    property.SetValueConverter(utcConverter);
+                else if (property.ClrType == typeof(DateTime?))
+                    property.SetValueConverter(utcNullableConverter);
+            }
+        }
     }
 
     private void ApplyOrganizationQueryFilters(ModelBuilder b)
