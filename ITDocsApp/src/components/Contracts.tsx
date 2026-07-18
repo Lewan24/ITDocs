@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import type { Contract, ContractCategory, ContractStatus } from '../api/types'
+import DocumentAttachment from '../components/DocumentAttachment'
+import { contractsApi } from '../api/resources'
 
 const CATEGORIES: ContractCategory[] = ['Service', 'Support', 'Maintenance', 'Lease', 'NDA', 'SLA', 'Software', 'Other']
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CZK']
@@ -40,7 +42,7 @@ const inp = (err?: string) =>
 function ContractModal({ initial, onClose, onSave }: {
   initial?: Contract
   onClose: () => void
-  onSave: (c: Omit<Contract, 'id' | 'status'>) => Promise<void>
+  onSave: (c: Omit<Contract, 'id' | 'status' | 'document'>, pendingFile?: File) => Promise<void>
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? '',
@@ -56,6 +58,7 @@ function ContractModal({ initial, onClose, onSave }: {
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
+  const [pendingFile, setPendingFile] = useState<File | undefined>()
 
   const set = (k: string, v: string | boolean) => {
     setForm(f => ({ ...f, [k]: v }))
@@ -82,7 +85,7 @@ function ContractModal({ initial, onClose, onSave }: {
         autoRenew: form.autoRenew,
         notes: form.notes.trim(),
         starred: form.starred,
-      })
+      }, pendingFile)
     } catch {
       setSubmitting(false)
     }
@@ -146,6 +149,17 @@ function ContractModal({ initial, onClose, onSave }: {
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
               placeholder="Key terms, contact persons, renewal conditions…" className={inp() + ' resize-none'} disabled={submitting} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Document</label>
+            <DocumentAttachment
+              doc={initial?.document}
+              entityId={initial?.id}
+              pendingFileName={pendingFile?.name}
+              onPendingFile={setPendingFile}
+              uploadFn={contractsApi.uploadDocument}
+              downloadFn={contractsApi.downloadDocument}
+            />
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -248,6 +262,16 @@ function ContractDetail({ contract, onEdit, onDelete, onToggleStar }: {
           <p className="text-xs text-ink-secondary leading-relaxed">{contract.notes}</p>
         </div>
       )}
+
+      <div className="px-5 py-4 border-t border-edge-subtle">
+        <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">Document</p>
+        <DocumentAttachment
+          doc={contract.document}
+          entityId={contract.id}
+          uploadFn={contractsApi.uploadDocument}
+          downloadFn={contractsApi.downloadDocument}
+        />
+      </div>
     </div>
   )
 }
@@ -255,7 +279,7 @@ function ContractDetail({ contract, onEdit, onDelete, onToggleStar }: {
 // ─── Contracts ────────────────────────────────────────────────────────────────
 
 export default function Contracts() {
-  const { contracts, isLoading, addContract, updateContract, deleteContract, toggleStarContract } = useApp()
+  const { contracts, isLoading, addContract, updateContract, deleteContract, toggleStarContract, toast } = useApp()
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'All'>('All')
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -281,11 +305,21 @@ export default function Contracts() {
   const expiring = contracts.filter(c => c.status === 'expiring').length
   const expired = contracts.filter(c => c.status === 'expired').length
 
-  const handleSave = async (data: Omit<Contract, 'id' | 'status'>) => {
+  const handleSave = async (data: Omit<Contract, 'id' | 'status' | 'document'>, pendingFile?: File) => {
     if (modal.initial) {
       await updateContract({ ...modal.initial, ...data })
     } else {
       await addContract(data)
+      if (pendingFile) {
+        const latest = contracts[0]
+        if (latest) {
+          try {
+            await contractsApi.uploadDocument(latest.id, pendingFile)
+          } catch {
+            toast('Contract saved, but the document failed to upload', 'error')
+          }
+        }
+      }
     }
     setModal({ open: false })
   }

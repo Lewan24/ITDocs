@@ -77,6 +77,8 @@ export const contractsApi = {
   update: (id: string, data: Omit<Contract, 'id' | 'status'>) => http.put<void>(`/contracts/${id}`, data),
   delete: (id: string) => http.delete<void>(`/contracts/${id}`),
   toggleStar: (id: string) => http.patch<{ starred: boolean }>(`/contracts/${id}/star`),
+  uploadDocument: (id: string, file: File) => http.upload<Contract>(`/contracts/${id}/document`, file),
+  downloadDocument: (id: string) => http.getBlob(`/contracts/${id}/document`),
 }
 
 export const plansApi = {

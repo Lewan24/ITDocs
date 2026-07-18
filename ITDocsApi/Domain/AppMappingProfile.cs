@@ -39,7 +39,28 @@ public class AppMappingProfile : Profile
         CreateMap<CreateContactDto, Contact>();
         CreateMap<UpdateContactDto, Contact>();
 
-        CreateMap<Contract, ContractDto>();
+        CreateMap<Contract, ContractDto>()
+            .ConstructUsing(src => new ContractDto(
+                src.Id,
+                src.Name,
+                src.Vendor,
+                src.Category,
+                src.StartDate,
+                src.EndDate,
+                src.Value,
+                src.Currency,
+                src.AutoRenew,
+                src.Notes,
+                src.Starred,
+                src.Status,
+                src.DocumentName == null
+                    ? null
+                    : new ContractDocumentDto(
+                        src.DocumentName,
+                        src.DocumentMimeType ?? "",
+                        src.DocumentSize ?? 0
+                    )
+            ));
         CreateMap<CreateContractDto, Contract>();
         CreateMap<UpdateContractDto, Contract>();
 
@@ -63,7 +84,30 @@ public class AppMappingProfile : Profile
         CreateMap<CreateGroupDto, Group>();
         CreateMap<UpdateGroupDto, Group>();
 
-        CreateMap<WarrantyItem, WarrantyItemDto>();
+        CreateMap<WarrantyItem, WarrantyItemDto>()
+            .ConstructUsing(src => new WarrantyItemDto(
+                src.Id,
+                src.Name,
+                src.Vendor,
+                src.SerialNumber,
+                src.PurchaseDate,
+                src.WarrantyEndDate,
+                src.WarrantyType,
+                src.ContactName,
+                src.ContactPhone,
+                src.ContactEmail,
+                src.Notes,
+                src.AssetId,
+                src.Starred,
+                src.Status,
+                src.DocumentName == null
+                    ? null
+                    : new WarrantyDocumentDto(
+                        src.DocumentName,
+                        src.DocumentMimeType ?? "",
+                        src.DocumentSize ?? 0
+                    )
+            ));
         CreateMap<CreateWarrantyItemDto, WarrantyItem>();
         CreateMap<UpdateWarrantyItemDto, WarrantyItem>();
 

@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Search, Plus, X, Edit2, Trash2, Star, ArrowLeft, Copy, Eye,
-  Paperclip, FileText, Shield, Calendar, Phone, Mail, Building2,
+  Search, Plus, X, Edit2, Trash2, Star, ArrowLeft, Copy, Shield, Calendar, Phone, Mail, Building2,
   CheckCircle2, AlertTriangle, Clock, Upload, ChevronDown, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { warrantyApi } from '../api/resources'
-import type { WarrantyItem, WarrantyType, WarrantyDocument } from '../api/types'
+import type { WarrantyItem, WarrantyType } from '../api/types'
+import DocumentAttachment from '../components/DocumentAttachment'
 
 const WARRANTY_TYPES: WarrantyType[] = ['Standard', 'Extended', 'On-Site NBD', 'Carry-In', 'Mail-In', 'Other']
 const STATUS_FILTERS = ['All', 'Active', 'Expiring', 'Expired'] as const
@@ -21,11 +21,6 @@ function daysUntil(endDate: string): number {
   return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000)
 }
 
-function formatSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${Math.ceil(bytes / 1024)} KB`
-}
-
 function formatDate(d: string): string {
   if (!d) return '—'
   try { return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }
@@ -34,108 +29,6 @@ function formatDate(d: string): string {
 
 function inp(error?: string) {
   return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${error ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
-}
-
-// ─── Document viewer helper ─────────────────────────────────────────────────
-// Documents live server-side now (no inline base64) — viewing means an
-// authenticated blob fetch, then opening it as an object URL.
-
-async function openDocument(id: string, toast: (msg: string, type?: 'success' | 'error' | 'info') => void) {
-  try {
-    const blob = await warrantyApi.downloadDocument(id)
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
-  } catch {
-    toast('Failed to load document', 'error')
-  }
-}
-
-// ─── Document Uploader ─────────────────────────────────────────────────────
-// Two modes:
-//  - "pending" (no warrantyId yet, e.g. inside the create form): holds a File
-//    locally via onPendingFile; nothing is uploaded until the item exists.
-//  - "attached" (editing an existing item): uploads immediately on file pick.
-
-function DocUploader({
-  doc, warrantyId, pendingFileName, onPendingFile, onUploaded,
-}: {
-  doc?: WarrantyDocument
-  warrantyId?: string
-  pendingFileName?: string
-  onPendingFile?: (file: File) => void
-  onUploaded?: (doc: WarrantyDocument) => void
-}) {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [warning, setWarning] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const { toast } = useApp()
-
-  const handleFile = async (file: File) => {
-    setWarning('')
-    if (file.size > 5 * 1024 * 1024) {
-      setWarning(`File is large (${formatSize(file.size)}). Large files may affect performance.`)
-    }
-    if (warrantyId) {
-      setUploading(true)
-      try {
-        const updated = await warrantyApi.uploadDocument(warrantyId, file)
-        if (updated.document) onUploaded?.(updated.document)
-        toast('Document uploaded')
-      } catch {
-        toast('Failed to upload document', 'error')
-      } finally {
-        setUploading(false)
-      }
-    } else {
-      onPendingFile?.(file)
-    }
-  }
-
-  const isPdf = doc?.mimeType === 'application/pdf'
-
-  return (
-    <div>
-      <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = '' }} />
-
-      {uploading ? (
-        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-navy-700 border border-edge-default">
-          <Loader2 size={14} className="animate-spin text-ink-muted flex-shrink-0" />
-          <span className="text-xs text-ink-muted">Uploading…</span>
-        </div>
-      ) : doc ? (
-        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-navy-700 border border-edge-default">
-          <div className="w-7 h-7 rounded-md bg-navy-600 border border-edge-subtle flex items-center justify-center flex-shrink-0">
-            <FileText size={13} className={isPdf ? 'text-red-400' : 'text-blue-400'} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-ink-primary truncate font-mono">{doc.name}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${isPdf ? 'text-red-400 bg-red-500/10 border-red-500/25' : 'text-blue-400 bg-blue-500/10 border-blue-500/25'}`}>{isPdf ? 'PDF' : 'Image'}</span>
-              <span className="text-[10px] text-ink-muted">{formatSize(doc.size)}</span>
-            </div>
-          </div>
-          {warrantyId && (
-            <button onClick={() => openDocument(warrantyId, toast)} className="p-1.5 rounded-md bg-navy-600 border border-edge-subtle text-ink-muted hover:text-blue-400 transition-colors" title="View"><Eye size={12} /></button>
-          )}
-          <button onClick={() => fileRef.current?.click()} className="p-1.5 rounded-md bg-navy-600 border border-edge-subtle text-ink-muted hover:text-blue-400 transition-colors" title="Replace"><Paperclip size={12} /></button>
-        </div>
-      ) : pendingFileName ? (
-        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-navy-700 border border-edge-default">
-          <FileText size={13} className="text-blue-400 flex-shrink-0" />
-          <p className="text-xs text-ink-primary truncate font-mono flex-1">{pendingFileName}</p>
-          <span className="text-[9px] text-ink-muted flex-shrink-0">will upload on save</span>
-        </div>
-      ) : (
-        <button onClick={() => fileRef.current?.click()}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-secondary text-xs hover:bg-navy-600 hover:border-edge-strong transition-colors w-full">
-          <Paperclip size={12} /> Attach PDF / Image
-        </button>
-      )}
-      {warning && <p className="text-[10px] text-orange-400 mt-1.5 flex items-center gap-1"><AlertTriangle size={10} /> {warning}</p>}
-    </div>
-  )
 }
 
 // ─── Warranty Form Modal ───────────────────────────────────────────────────────
@@ -268,11 +161,13 @@ function WarrantyForm({ initial, onSave, onClose }: FormProps) {
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Document</label>
-            <DocUploader
+            <DocumentAttachment
               doc={initial?.document}
-              warrantyId={initial?.id}
+              entityId={initial?.id}
               pendingFileName={pendingFile?.name}
               onPendingFile={setPendingFile}
+              uploadFn={warrantyApi.uploadDocument}
+              downloadFn={warrantyApi.downloadDocument}
             />
           </div>
         </div>
@@ -445,10 +340,11 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
       {/* Document */}
       <div className="bg-navy-800 border border-edge-subtle rounded-xl p-4 sm:p-5">
         <h3 className="text-xs font-semibold text-ink-primary mb-3 flex items-center gap-2"><Upload size={13} className="text-purple-400" /> Document</h3>
-        <DocUploader
+        <DocumentAttachment
           doc={item.document}
-          warrantyId={item.id}
-          onUploaded={() => { /* AppProvider already updates warrantyItems from the upload response */ }}
+          entityId={item.id}
+          uploadFn={warrantyApi.uploadDocument}
+          downloadFn={warrantyApi.downloadDocument}
         />
       </div>
 
@@ -611,12 +507,8 @@ export default function Warranty() {
         <WarrantyForm
           onSave={async (d, pendingFile) => {
             await addWarranty({ ...d, starred: false })
-            // The item was just created — AppProvider's addWarranty appends it to
-            // warrantyItems, but doesn't hand back the new id here, so if a file
-            // was attached we upload it as a fire-and-forget follow-up. The user
-            // sees the new record immediately either way.
             if (pendingFile) {
-              const latest = warrantyItems[0] // most recently prepended
+              const latest = warrantyItems[0]
               if (latest) {
                 try { await warrantyApi.uploadDocument(latest.id, pendingFile) }
                 catch { toast('Warranty saved, but the document failed to upload', 'error') }

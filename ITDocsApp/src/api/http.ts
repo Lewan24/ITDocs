@@ -21,10 +21,12 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler) {
 }
 
 async function request<T>(path: string, options: RequestInit = {}, getString: boolean = false): Promise<T> {
+  const isFormData = options.body instanceof FormData
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...options.headers,
     },

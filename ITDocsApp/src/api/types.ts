@@ -57,6 +57,7 @@ export interface Contract {
   id: string; name: string; vendor: string; category: ContractCategory
   startDate: string; endDate: string; value: number; currency: string
   autoRenew: boolean; notes: string; starred: boolean; status: ContractStatus
+  document?: WarrantyDocument
 }
 
 export interface Plan {

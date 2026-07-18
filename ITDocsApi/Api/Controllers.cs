@@ -24,8 +24,6 @@ public class OrganizationsController(AppDbContext db, IMapper mapper, ICurrentUs
         return Ok(orgs);
     }
 
-    // Literal "deleted" segment is more specific than {id:guid} in ASP.NET's
-    // routing, so this is matched correctly regardless of declaration order.
     [HttpGet("deleted")]
     public async Task<ActionResult<List<OrganizationSummaryDto>>> GetDeleted()
     {
@@ -672,7 +670,7 @@ public class ContactsController(AppDbContext db, IMapper mapper, ICurrentUserCon
 // ─── ContractsController ────────────────────────────────────────────────────
 [ApiController]
 [Route("api/contracts")]
-public class ContractsController(AppDbContext db, IMapper mapper, ICurrentUserContext userContext) : OrgScopedController(db, userContext)
+public class ContractsController(AppDbContext db, IMapper mapper, ICurrentUserContext userContext, IFileStorage storage) : OrgScopedController(db, userContext)
 {
     [HttpGet]
     public async Task<ActionResult<List<ContractDto>>> GetAll([FromQuery] Guid? organizationId)
@@ -686,7 +684,29 @@ public class ContractsController(AppDbContext db, IMapper mapper, ICurrentUserCo
         var query = Db.Contracts.AsQueryable();
         if (organizationId is { } id) query = query.Where(c => c.OrganizationId == id);
 
-        return Ok(await query.ProjectTo<ContractDto>(mapper.ConfigurationProvider).ToListAsync());
+        return Ok(await query
+            .Select(c => new ContractDto(
+                c.Id,
+                c.Name,
+                c.Vendor,
+                c.Category,
+                c.StartDate,
+                c.EndDate,
+                c.Value,
+                c.Currency,
+                c.AutoRenew,
+                c.Notes,
+                c.Starred,
+                c.Status,
+                c.DocumentName == null
+                    ? null
+                    : new ContractDocumentDto(
+                        c.DocumentName,
+                        c.DocumentMimeType ?? "",
+                        c.DocumentSize ?? 0
+                    )
+            ))
+            .ToListAsync());
     }
 
     [HttpGet("{id:guid}")]
@@ -751,6 +771,37 @@ public class ContractsController(AppDbContext db, IMapper mapper, ICurrentUserCo
         contract.Starred = !contract.Starred;
         await Db.SaveChangesAsync();
         return Ok(new { contract.Starred });
+    }
+    
+    [HttpPost("{id:guid}/document")]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> UploadDocument(Guid id, IFormFile file)
+    {
+        var contract = await Db.Contracts.FirstOrDefaultAsync(c => c.Id == id);
+        if (contract is null) return NotFound();
+
+        var check = await CheckWriteAccessAsync(contract.OrganizationId);
+        if (check is not null) return check;
+
+        if (contract.DocumentBlobPath is not null) await storage.DeleteAsync(contract.DocumentBlobPath);
+
+        var path = await storage.SaveAsync(file.OpenReadStream(), file.FileName, file.ContentType);
+        contract.DocumentName = file.FileName;
+        contract.DocumentMimeType = file.ContentType;
+        contract.DocumentSize = file.Length;
+        contract.DocumentBlobPath = path;
+        await Db.SaveChangesAsync();
+        return Ok(mapper.Map<ContractDto>(contract));
+    }
+
+    [HttpGet("{id:guid}/document")]
+    public async Task<IActionResult> DownloadDocument(Guid id)
+    {
+        var contract = await Db.Contracts.FirstOrDefaultAsync(c => c.Id == id);
+        if (contract?.DocumentBlobPath is null) return NotFound();
+
+        var stream = await storage.OpenAsync(contract.DocumentBlobPath);
+        return File(stream, contract.DocumentMimeType ?? "application/octet-stream", contract.DocumentName);
     }
 
     private static ContractStatus CalcStatus(DateOnly end)
@@ -1142,7 +1193,31 @@ public class WarrantiesController(AppDbContext db, IMapper mapper, ICurrentUserC
         var query = Db.WarrantyItems.AsQueryable();
         if (organizationId is { } id) query = query.Where(w => w.OrganizationId == id);
 
-        return Ok(await query.ProjectTo<WarrantyItemDto>(mapper.ConfigurationProvider).ToListAsync());
+        return Ok(await query
+            .Select(w => new WarrantyItemDto(
+                w.Id,
+                w.Name,
+                w.Vendor,
+                w.SerialNumber,
+                w.PurchaseDate,
+                w.WarrantyEndDate,
+                w.WarrantyType,
+                w.ContactName,
+                w.ContactPhone,
+                w.ContactEmail,
+                w.Notes,
+                w.AssetId,
+                w.Starred,
+                w.Status,
+                w.DocumentName == null
+                    ? null
+                    : new WarrantyDocumentDto(
+                        w.DocumentName,
+                        w.DocumentMimeType ?? "",
+                        w.DocumentSize ?? 0
+                    )
+            ))
+            .ToListAsync());
     }
 
     [HttpGet("{id:guid}")]

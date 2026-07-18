@@ -96,6 +96,11 @@ public class Contract : BaseEntity
     public string Notes { get; set; } = "";
     public bool Starred { get; set; }
     public ContractStatus Status { get; set; }
+    
+    public string? DocumentName { get; set; }
+    public string? DocumentMimeType { get; set; }
+    public long? DocumentSize { get; set; }
+    public string? DocumentBlobPath { get; set; }
 }
 
 public class Plan : BaseEntity
