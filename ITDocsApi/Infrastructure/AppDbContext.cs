@@ -205,6 +205,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
             e.HasOne(uo => uo.Organization).WithMany(o => o.Memberships).HasForeignKey(uo => uo.OrganizationId);
         });
         
+        b.Entity<Organization>().HasQueryFilter(o => !o.IsDeleted);
+        
         // ── Global tenant-isolation filter for every BaseEntity ──
         ApplyOrganizationQueryFilters(b);
         ApplyUtcDateTimeConversion(b);
@@ -264,7 +266,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
     {
         Expression<Func<TEntity, bool>> filter = e =>
             currentUser.UserId.HasValue &&
-            Set<UserOrganization>().Any(uo => uo.UserId == currentUser.UserId!.Value && uo.OrganizationId == e.OrganizationId);
+            Set<UserOrganization>().Any(uo => uo.UserId == currentUser.UserId!.Value && uo.OrganizationId == e.OrganizationId) &&
+            Set<Organization>().Any(o => o.Id == e.OrganizationId);
         return filter;
     }
 }

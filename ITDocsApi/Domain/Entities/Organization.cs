@@ -7,6 +7,8 @@ public class Organization
     public string Color { get; set; } = "";
     public string Initials { get; set; } = "";
     public string Description { get; set; } = "";
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
 
     public List<Asset> Assets { get; set; } = [];
     public List<PasswordEntry> Passwords { get; set; } = [];

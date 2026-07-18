@@ -23,6 +23,7 @@ export type OrgRole = 'ReadOnly' | 'Member' | 'Admin' | 'Owner'
 export interface Organization { id: string; name: string; color: string; initials: string; description: string }
 export interface OrganizationSummary { id: string; name: string; role: OrgRole }
 export interface OrgMembership extends Organization { role: OrgRole }
+export interface OrgMember { userId: string; email: string; displayName: string; role: OrgRole }
 
 export interface Asset {
   id: string; name: string; type: AssetType; status: AssetStatus; location: string

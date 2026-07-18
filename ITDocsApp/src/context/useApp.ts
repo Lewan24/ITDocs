@@ -3,6 +3,8 @@ import type {
   Organization, Asset, PasswordEntry, Subnet, IPEntry, License, Contact, Contract,
   Plan, Incident, KnowledgeArticle, Task, Group, WarrantyItem,
   DiagramNode, DiagramEdge, Toast,
+  OrgMember,
+  OrgRole,
 } from '../api/types'
 import type { OrgMembership } from '../api/types'
 
@@ -10,6 +12,10 @@ export interface AppContextValue {
   orgs: OrgMembership[]; currentOrg: OrgMembership | undefined
   switchOrg: (id: string) => void; addOrg: (o: Omit<Organization, 'id'>) => Promise<void>
   updateOrg: (id: string, o: Omit<Organization, 'id'>) => Promise<void>
+  inviteMember: (orgId: string, email: string, role: OrgRole) => Promise<OrgMember>
+  removeMember: (orgId: string, userId: string) => Promise<void>
+  deleteOrg: (orgId: string) => Promise<void>
+  restoreOrg: (orgId: string) => Promise<void>
   assets: Asset[]; passwords: PasswordEntry[]; subnets: Subnet[]; licenses: License[]
   contacts: Contact[]; contracts: Contract[]; plans: Plan[]; incidents: Incident[]
   knowledgeArticles: KnowledgeArticle[]; tasks: Task[]

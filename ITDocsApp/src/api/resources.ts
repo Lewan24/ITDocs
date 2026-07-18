@@ -3,13 +3,22 @@ import type {
   Asset, PasswordEntry, Subnet, IPEntry, License, Contact, Contract,
   Plan, Incident, KnowledgeArticle, Task, Group, WarrantyItem,
   DiagramNode, DiagramEdge, Organization, OrganizationSummary,
+  OrgMember,
+  OrgRole,
 } from './types'
 
 export const organizationsApi = {
   getAll: () => http.get<OrganizationSummary[]>('/organizations'),
+  getDeleted: () => http.get<OrganizationSummary[]>('/organizations/deleted'),
   getById: (id: string) => http.get<Organization>(`/organizations/${id}`),
   create: (data: Omit<Organization, 'id'>) => http.post<Organization>('/organizations', data),
   update: (id: string, data: Omit<Organization, 'id'>) => http.put<void>(`/organizations/${id}`, data),
+  getMembers: (id: string) => http.get<OrgMember[]>(`/organizations/${id}/members`),
+  inviteMember: (id: string, email: string, role: OrgRole) =>
+    http.post<OrgMember>(`/organizations/${id}/members`, { email, role }),
+  removeMember: (id: string, userId: string) => http.delete<void>(`/organizations/${id}/members/${userId}`),
+  softDelete: (id: string) => http.delete<void>(`/organizations/${id}`),
+  restore: (id: string) => http.post<void>(`/organizations/${id}/restore`),
 }
 
 export const assetsApi = {

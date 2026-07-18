@@ -6,6 +6,7 @@ import type {
   Plan, Incident, KnowledgeArticle, Task, Group, WarrantyItem,
   DiagramNode, DiagramEdge, Toast,
   OrgMembership,
+  OrgRole,
 } from '../api/types'
 import {
   organizationsApi, assetsApi, passwordsApi, subnetsApi, licensesApi,
@@ -34,6 +35,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState(emptyOrgState())
   const [toasts, setToasts] = useState<Toast[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { user } = useAuth()
 
   const toast = useCallback((message: string, type: Toast['type'] = 'success') => {
     if (!message) return
@@ -134,6 +136,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await guarded(() => organizationsApi.update(id, o), 'Failed to update organization')
     setOrgs(prev => prev.map(x => x.id === id ? { ...x, ...o } : x))
     toast(`Organization "${o.name}" updated`)
+  }, [guarded, toast])
+
+  const inviteMember = useCallback(async (orgId: string, email: string, role: OrgRole) => {
+    return guarded(() => organizationsApi.inviteMember(orgId, email, role), 'Failed to add member')
+  }, [guarded])
+
+  const removeMember = useCallback(async (orgId: string, userId: string) => {
+    await guarded(() => organizationsApi.removeMember(orgId, userId), 'Failed to remove member')
+    if (userId === user?.id) {
+      setOrgs(prev => prev.filter(o => o.id !== orgId))
+      if (currentOrgId === orgId) {
+        const next = orgs.find(o => o.id !== orgId)
+        switchOrg(next?.id ?? '')
+      }
+    }
+  }, [guarded, user, currentOrgId, orgs, switchOrg])
+
+  const deleteOrg = useCallback(async (orgId: string) => {
+    await guarded(() => organizationsApi.softDelete(orgId), 'Failed to delete organization')
+    setOrgs(prev => prev.filter(o => o.id !== orgId))
+    if (currentOrgId === orgId) {
+      const next = orgs.find(o => o.id !== orgId)
+      switchOrg(next?.id ?? '')
+    }
+    toast('Organization deleted', 'info')
+  }, [guarded, currentOrgId, orgs, switchOrg, toast])
+
+  const restoreOrg = useCallback(async (orgId: string) => {
+    await guarded(() => organizationsApi.restore(orgId), 'Failed to restore organization')
+    const summaries = await organizationsApi.getAll()
+    const full = await Promise.all(summaries.map(async s => ({ ...(await organizationsApi.getById(s.id)), role: s.role })))
+    setOrgs(full)
+    toast('Organization restored')
   }, [guarded, toast])
 
   // ── Assets ──
@@ -445,7 +480,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentOrgId, guarded])
 
   const value = {
-    orgs, currentOrg, switchOrg, addOrg, updateOrg,
+    orgs, currentOrg, switchOrg, addOrg, updateOrg,inviteMember, removeMember, deleteOrg, restoreOrg,
     assets: data.assets, passwords: data.passwords, subnets: data.subnets, licenses: data.licenses,
     contacts: data.contacts, contracts: data.contracts, plans: data.plans, incidents: data.incidents,
     knowledgeArticles: data.knowledgeArticles, tasks: data.tasks,

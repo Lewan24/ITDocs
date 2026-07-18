@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  User, Building2, Bell, Shield, Info, Plus, Edit2,
+  User, Building2, Bell, Shield, Info, Plus, Trash2, Edit2,
   Check, X, LogOut, Key, Monitor, Globe, Moon, Sun, ChevronRight,
   AlertTriangle, CheckCircle2, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import { useAuth } from '../context/useAuth'
-import { toggleTheme, getTheme } from '../lib/theme'
+import { organizationsApi } from '../api/resources'
 import { ApiError } from '../api/http'
-import type { Organization, OrganizationSummary } from '../api/types'
+import { toggleTheme, getTheme } from '../lib/theme'
+import type { Organization, OrgMembership, OrgMember, OrgRole, OrganizationSummary } from '../api/types'
 import type { View } from '../App'
 
 type Section = 'profile' | 'organizations' | 'appearance' | 'security' | 'notifications' | 'about'
@@ -72,16 +73,42 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   )
 }
 
+function ConfirmModal({ title, message, confirmLabel, busy, onCancel, onConfirm }: {
+  title: string
+  message: React.ReactNode
+  confirmLabel: string
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => !busy && onCancel()}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-navy-800 border border-red-500/30 rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto mb-4"><AlertTriangle size={18} className="text-red-400" /></div>
+        <h3 className="text-sm font-semibold text-ink-primary text-center mb-1">{title}</h3>
+        <p className="text-xs text-ink-muted text-center mb-5">{message}</p>
+        <div className="flex gap-2">
+          <button onClick={onCancel} disabled={busy} className="flex-1 py-2 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs transition-colors border border-edge-default disabled:opacity-40">Cancel</button>
+          <button onClick={onConfirm} disabled={busy} className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+            {busy && <Loader2 size={12} className="animate-spin" />} {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Org edit modal ──────────────────────────────────────────────────────────
 
 function OrgEditModal({ org, onClose, onSave }: {
-  org: OrganizationSummary & Partial<Organization>
+  org: OrgMembership
   onClose: () => void
   onSave: (data: Omit<Organization, 'id'>) => Promise<void>
 }) {
   const [name, setName] = useState(org.name)
-  const [desc, setDesc] = useState(org.description ?? '')
-  const [color, setColor] = useState(org.color ?? '#2563eb')
+  const [desc, setDesc] = useState(org.description)
+  const [color, setColor] = useState(org.color)
   const [submitting, setSubmitting] = useState(false)
   const COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706', '#0891b2', '#be185d', '#374151']
 
@@ -98,7 +125,7 @@ function OrgEditModal({ org, onClose, onSave }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle">
@@ -132,6 +159,130 @@ function OrgEditModal({ org, onClose, onSave }: {
             {submitting && <Loader2 size={11} className="animate-spin" />}
             {submitting ? 'Saving…' : 'Save'}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Members modal ────────────────────────────────────────────────────────────
+
+function MembersModal({ org, onClose }: { org: OrgMembership; onClose: () => void }) {
+  const { inviteMember, removeMember, toast } = useApp()
+  const { user: currentUser } = useAuth()
+  const [members, setMembers] = useState<OrgMember[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState<OrgRole>('Member')
+  const [inviting, setInviting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  const canManage = org.role === 'Owner' || org.role === 'Admin'
+
+  useEffect(() => {
+    organizationsApi.getMembers(org.id)
+      .then(setMembers)
+      .catch(() => toast('Failed to load members', 'error'))
+      .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org.id])
+
+  const handleInvite = async () => {
+    if (!email.trim() || inviting) return
+    setInviting(true)
+    setError(null)
+    try {
+      const member = await inviteMember(org.id, email.trim(), role)
+      setMembers(m => m ? [...m, member] : [member])
+      setEmail('')
+      toast(`${member.displayName || member.email} added`)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to add member')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  const handleRemove = async (userId: string) => {
+    setRemovingId(userId)
+    try {
+      await removeMember(org.id, userId)
+      setMembers(m => m?.filter(x => x.userId !== userId) ?? null)
+      if (userId === currentUser?.id) onClose()
+    } catch {
+      // error toast already fired by AppProvider
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle flex-shrink-0">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-primary">Members — {org.name}</h2>
+            <p className="text-[11px] text-ink-muted mt-0.5">Manage who has access to this organization</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+        </div>
+
+        {canManage && (
+          <div className="px-5 py-3 border-b border-edge-subtle flex-shrink-0 space-y-2">
+            <div className="flex gap-2">
+              <input value={email} onChange={e => { setEmail(e.target.value); setError(null) }}
+                placeholder="person@company.com" className={inp()} disabled={inviting}
+                onKeyDown={e => { if (e.key === 'Enter') handleInvite() }} />
+              <select value={role} onChange={e => setRole(e.target.value as OrgRole)} disabled={inviting}
+                className="px-2 py-2 rounded-lg bg-navy-700 border border-edge-default text-ink-primary text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50">
+                <option value="Member">Member</option>
+                <option value="Admin">Admin</option>
+                <option value="ReadOnly">Read Only</option>
+              </select>
+              <button onClick={handleInvite} disabled={inviting || !email.trim()}
+                className="px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5 flex-shrink-0">
+                {inviting ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+              </button>
+            </div>
+            {error && <p className="text-[11px] text-red-400">{error}</p>}
+            <p className="text-[10px] text-ink-muted">The person must already have an account — this adds them by email, it doesn't send a signup invite.</p>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto divide-y divide-edge-subtle">
+          {loading ? (
+            <div className="flex items-center justify-center py-10"><Loader2 size={18} className="animate-spin text-ink-muted" /></div>
+          ) : members && members.length > 0 ? (
+            members.map(m => {
+              const isSelf = m.userId === currentUser?.id
+              const isOwner = m.role === 'Owner'
+              const canRemoveOthers = canManage && !isOwner && (org.role === 'Owner' || m.role !== 'Admin')
+              const showRemove = (isSelf && !isOwner) || (!isSelf && canRemoveOthers)
+              return (
+                <div key={m.userId} className="flex items-center gap-3 px-5 py-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                    {(m.displayName || m.email).slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-ink-primary truncate">{m.displayName || m.email}{isSelf ? ' (you)' : ''}</p>
+                    <p className="text-[10px] text-ink-muted truncate">{m.email}</p>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-navy-700 border border-edge-subtle text-ink-muted flex-shrink-0">{m.role}</span>
+                  {showRemove && (
+                    <button onClick={() => handleRemove(m.userId)} disabled={removingId === m.userId}
+                      className="p-1.5 rounded-md text-ink-muted hover:text-red-400 hover:bg-navy-700 transition-colors disabled:opacity-40 flex-shrink-0"
+                      title={isSelf ? 'Leave organization' : 'Remove member'}>
+                      {removingId === m.userId ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                    </button>
+                  )}
+                </div>
+              )
+            })
+          ) : (
+            <p className="px-5 py-8 text-center text-xs text-ink-muted">No members found</p>
+          )}
         </div>
       </div>
     </div>
@@ -222,13 +373,21 @@ function ProfileSection() {
 }
 
 function OrganizationsSection({ navigate }: { navigate: (v: View) => void }) {
-  const { orgs, currentOrg, switchOrg, addOrg, updateOrg, toast } = useApp()
-  const [editTarget, setEditTarget] = useState<OrganizationSummary | null>(null)
+  const { orgs, currentOrg, switchOrg, addOrg, updateOrg, deleteOrg, removeMember, restoreOrg, toast } = useApp()
+  const { user: currentUser } = useAuth()
+  const [editTarget, setEditTarget] = useState<OrgMembership | null>(null)
+  const [membersTarget, setMembersTarget] = useState<OrgMembership | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<OrgMembership | null>(null)
+  const [leaveTarget, setLeaveTarget] = useState<OrgMembership | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newColor, setNewColor] = useState('#2563eb')
   const [creating, setCreating] = useState(false)
+  const [deletedOrgs, setDeletedOrgs] = useState<OrganizationSummary[] | null>(null)
+  const [loadingDeleted, setLoadingDeleted] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
   const COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706', '#0891b2', '#be185d']
 
   const submitNew = async () => {
@@ -239,9 +398,59 @@ function OrganizationsSection({ navigate }: { navigate: (v: View) => void }) {
       await addOrg({ name: newName.trim(), description: newDesc, color: newColor, initials })
       setNewName(''); setNewDesc(''); setAddOpen(false)
     } catch {
-      // error toast already fired by AppProvider
+      // error toast already fired
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setBusyId(deleteTarget.id)
+    try {
+      await deleteOrg(deleteTarget.id)
+      setDeleteTarget(null)
+    } catch {
+      // error toast already fired
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleLeave = async () => {
+    if (!leaveTarget || !currentUser) return
+    setBusyId(leaveTarget.id)
+    try {
+      await removeMember(leaveTarget.id, currentUser.id)
+      toast(`Left ${leaveTarget.name}`, 'info')
+      setLeaveTarget(null)
+    } catch {
+      // error toast already fired
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const loadDeleted = async () => {
+    setLoadingDeleted(true)
+    try {
+      setDeletedOrgs(await organizationsApi.getDeleted())
+    } catch {
+      toast('Failed to load deleted organizations', 'error')
+    } finally {
+      setLoadingDeleted(false)
+    }
+  }
+
+  const handleRestore = async (id: string) => {
+    setRestoringId(id)
+    try {
+      await restoreOrg(id)
+      setDeletedOrgs(prev => prev?.filter(o => o.id !== id) ?? null)
+    } catch {
+      // error toast already fired
+    } finally {
+      setRestoringId(null)
     }
   }
 
@@ -287,45 +496,111 @@ function OrganizationsSection({ navigate }: { navigate: (v: View) => void }) {
         )}
 
         <div className="divide-y divide-edge-subtle">
-          {orgs.map(org => (
-            <div key={org.id} className={`flex items-center gap-3 px-5 py-4 ${currentOrg?.id === org.id ? 'bg-blue-500/5' : ''}`}>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-                style={{ backgroundColor: org.color }}>{org.initials}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-ink-primary">{org.name}</p>
-                  {currentOrg?.id === org.id && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">active</span>}
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-navy-700 text-ink-muted border border-edge-subtle">{org.role}</span>
+          {orgs.map(org => {
+            const canManage = org.role === 'Owner' || org.role === 'Admin'
+            const isOwner = org.role === 'Owner'
+            const busy = busyId === org.id
+            return (
+              <div key={org.id} className={`flex items-center gap-3 px-5 py-4 flex-wrap ${currentOrg?.id === org.id ? 'bg-blue-500/5' : ''}`}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                  style={{ backgroundColor: org.color }}>{org.initials}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-ink-primary">{org.name}</p>
+                    {currentOrg?.id === org.id && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">active</span>}
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-navy-700 text-ink-muted border border-edge-subtle">{org.role}</span>
+                  </div>
+                  {org.description && <p className="text-xs text-ink-muted mt-0.5">{org.description}</p>}
                 </div>
-                {org.description && <p className="text-xs text-ink-muted mt-0.5">{org.description}</p>}
+                <div className="flex gap-1 flex-shrink-0 flex-wrap">
+                  {currentOrg?.id !== org.id && (
+                    <button onClick={() => { switchOrg(org.id); navigate('dashboard'); toast(`Switched to ${org.name}`, 'info') }}
+                      className="px-2.5 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">
+                      Switch
+                    </button>
+                  )}
+                  {canManage && (
+                    <button onClick={() => setMembersTarget(org)} className="px-2.5 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">
+                      Members
+                    </button>
+                  )}
+                  {canManage && (
+                    <button onClick={() => setEditTarget(org)} className="p-1.5 rounded-md text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><Edit2 size={13} /></button>
+                  )}
+                  {isOwner ? (
+                    <button onClick={() => setDeleteTarget(org)} disabled={busy} title="Delete organization"
+                      className="p-1.5 rounded-md text-ink-muted hover:text-red-400 hover:bg-navy-700 transition-colors disabled:opacity-40">
+                      <Trash2 size={13} />
+                    </button>
+                  ) : (
+                    <button onClick={() => setLeaveTarget(org)} disabled={busy}
+                      className="px-2.5 py-1.5 rounded-lg text-red-400 text-xs border border-red-500/25 hover:bg-red-500/10 transition-colors disabled:opacity-40">
+                      Leave
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-1 flex-shrink-0">
-                {currentOrg?.id !== org.id && (
-                  <button onClick={() => { switchOrg(org.id); navigate('dashboard'); toast(`Switched to ${org.name}`, 'info') }}
-                    className="px-2.5 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">
-                    Switch
-                  </button>
-                )}
-                <button onClick={() => setEditTarget(org)} className="p-1.5 rounded-md text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><Edit2 size={13} /></button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </SectionCard>
 
+      <SectionCard>
+        <SectionHeader title="Deleted Organizations" desc="Organizations you own that have been deleted can be restored here" action={
+          <button onClick={loadDeleted} disabled={loadingDeleted}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors disabled:opacity-50">
+            {loadingDeleted && <Loader2 size={11} className="animate-spin" />} {deletedOrgs ? 'Refresh' : 'Check'}
+          </button>
+        } />
+        {deletedOrgs === null ? (
+          <p className="px-5 py-6 text-xs text-ink-muted text-center">Click "Check" to look for deleted organizations you own.</p>
+        ) : deletedOrgs.length === 0 ? (
+          <p className="px-5 py-6 text-xs text-ink-muted text-center">No deleted organizations found.</p>
+        ) : (
+          <div className="divide-y divide-edge-subtle">
+            {deletedOrgs.map(org => (
+              <div key={org.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <p className="text-sm text-ink-primary">{org.name}</p>
+                <button onClick={() => handleRestore(org.id)} disabled={restoringId === org.id}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all disabled:opacity-50">
+                  {restoringId === org.id && <Loader2 size={11} className="animate-spin" />} Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+
       {editTarget && (
-        <OrgEditModal
-          org={editTarget}
-          onClose={() => setEditTarget(null)}
-          onSave={data => updateOrg(editTarget.id, data)}
+        <OrgEditModal org={editTarget} onClose={() => setEditTarget(null)} onSave={data => updateOrg(editTarget.id, data)} />
+      )}
+      {membersTarget && (
+        <MembersModal org={membersTarget} onClose={() => setMembersTarget(null)} />
+      )}
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete Organization"
+          message={<>Delete <span className="text-ink-primary font-medium">{deleteTarget.name}</span>? It will be hidden from everyone, but you can restore it later from this page.</>}
+          confirmLabel="Delete"
+          busy={busyId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+      {leaveTarget && (
+        <ConfirmModal
+          title="Leave Organization"
+          message={<>Leave <span className="text-ink-primary font-medium">{leaveTarget.name}</span>? You'll lose access until someone invites you back.</>}
+          confirmLabel="Leave"
+          busy={busyId === leaveTarget.id}
+          onCancel={() => setLeaveTarget(null)}
+          onConfirm={handleLeave}
         />
       )}
     </div>
   )
 }
 
-// Theme is synced with the same lib/theme functions Layout.tsx uses — toggling
-// here and toggling in the topbar reflect the same global state.
 function AppearanceSection() {
   const [theme, setTheme] = useState(getTheme)
   const [accent, setAccent] = useState('#2563eb')
@@ -337,17 +612,12 @@ function AppearanceSection() {
       <SectionCard>
         <SectionHeader title="Theme" desc="Visual appearance settings" />
         <Row label="Color scheme" sub="Switch between light and dark mode">
-          <button
-            onClick={() => setTheme(toggleTheme())}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default text-xs text-ink-secondary hover:border-edge-strong transition-colors"
-          >
+          <button onClick={() => setTheme(toggleTheme())}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default text-xs text-ink-secondary hover:border-edge-strong transition-colors">
             {theme === 'dark' ? <Moon size={12} className="text-blue-400" /> : <Sun size={12} className="text-orange-400" />}
             {theme === 'dark' ? 'Dark' : 'Light'}
           </button>
         </Row>
-        {/* Accent color, density, and monospace toggle below are display
-            preferences held only in this session — there's no backend endpoint
-            for per-user UI preferences yet, so they reset on reload. */}
         <Row label="Accent color" sub="Used for active states and buttons (this session only)">
           <div className="flex gap-2">
             {ACCENT_COLORS.map(c => (
@@ -440,10 +710,6 @@ function SecuritySection() {
         </div>
       </SectionCard>
 
-      {/* The controls below (2FA, session timeout, audit log, IP allowlist, API
-          tokens) describe features the backend doesn't implement yet. Rather
-          than fabricate persisted state or fake tokens, they're shown as
-          disabled/informational so nothing here misrepresents itself as saved. */}
       <SectionCard>
         <SectionHeader title="Additional Security" desc="Not yet available in this deployment" />
         <Row label="Two-factor authentication" sub="Not yet supported">
@@ -460,9 +726,6 @@ function SecuritySection() {
   )
 }
 
-// No backend endpoint stores per-user notification preferences yet — these
-// toggles are local-only for now and reset on reload, same caveat as the
-// cosmetic appearance settings above.
 function NotificationsSection() {
   const [prefs, setPrefs] = useState({
     licenseExpiry: true, assetOffline: true, passwordAudit: false,

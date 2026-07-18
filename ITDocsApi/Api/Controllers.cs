@@ -8,19 +8,29 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITDocsApi.Api;
 
-// ─── OrganizationsController ────────────────────────────────────────────────
-// Special case: Organization isn't a BaseEntity, so it has no global query filter.
-// Access is checked explicitly against UserOrganizations everywhere.
 [ApiController]
 [Route("api/organizations")]
 public class OrganizationsController(AppDbContext db, IMapper mapper, ICurrentUserContext userContext) : OrgScopedController(db, userContext)
 {
-    // Returns only orgs the caller is a member of, with their role in each
+    private readonly ICurrentUserContext _userContext = userContext;
+
     [HttpGet]
     public async Task<ActionResult<List<OrganizationSummaryDto>>> GetAll()
     {
         var orgs = await Db.UserOrganizations
-            .Where(uo => uo.UserId == userContext.UserId)
+            .Where(uo => uo.UserId == _userContext.UserId)
+            .Select(uo => new OrganizationSummaryDto(uo.OrganizationId, uo.Organization.Name, uo.Role.ToString()))
+            .ToListAsync();
+        return Ok(orgs);
+    }
+
+    // Literal "deleted" segment is more specific than {id:guid} in ASP.NET's
+    // routing, so this is matched correctly regardless of declaration order.
+    [HttpGet("deleted")]
+    public async Task<ActionResult<List<OrganizationSummaryDto>>> GetDeleted()
+    {
+        var orgs = await Db.UserOrganizations.IgnoreQueryFilters()
+            .Where(uo => uo.UserId == _userContext.UserId && uo.Role == OrgRole.Owner && uo.Organization.IsDeleted)
             .Select(uo => new OrganizationSummaryDto(uo.OrganizationId, uo.Organization.Name, uo.Role.ToString()))
             .ToListAsync();
         return Ok(orgs);
@@ -36,17 +46,16 @@ public class OrganizationsController(AppDbContext db, IMapper mapper, ICurrentUs
         return org is null ? NotFound() : Ok(mapper.Map<OrganizationDto>(org));
     }
 
-    // Creating an org makes the caller its Owner
     [HttpPost]
     public async Task<ActionResult<OrganizationDto>> Create(CreateOrganizationDto dto)
     {
         var org = mapper.Map<Organization>(dto);
         Db.Organizations.Add(org);
-        Db.UserOrganizations.Add(new UserOrganization { UserId = userContext.UserId, OrganizationId = org.Id, Role = OrgRole.Owner });
+        Db.UserOrganizations.Add(new UserOrganization { UserId = _userContext.UserId, OrganizationId = org.Id, Role = OrgRole.Owner });
         await Db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = org.Id }, mapper.Map<OrganizationDto>(org));
     }
-    
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateOrganizationDto dto)
     {
@@ -57,6 +66,118 @@ public class OrganizationsController(AppDbContext db, IMapper mapper, ICurrentUs
         if (org is null) return NotFound();
 
         mapper.Map(dto, org);
+        await Db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Members ──
+
+    [HttpGet("{id:guid}/members")]
+    public async Task<ActionResult<List<OrgMemberDto>>> GetMembers(Guid id)
+    {
+        var check = await CheckReadAccessAsync(id);
+        if (check is not null) return check;
+
+        var members = await Db.UserOrganizations
+            .Where(uo => uo.OrganizationId == id)
+            .Select(uo => new OrgMemberDto(uo.UserId, uo.User.Email, uo.User.DisplayName, uo.Role))
+            .ToListAsync();
+        return Ok(members);
+    }
+
+    // Only registered users can be invited — this looks them up by email
+    // rather than sending a signup link. Role is capped below Owner: an org
+    // can only ever have the one Owner it was created with.
+    [HttpPost("{id:guid}/members")]
+    public async Task<ActionResult<OrgMemberDto>> InviteMember(Guid id, InviteMemberDto dto)
+    {
+        var check = await CheckWriteAccessAsync(id, OrgRole.Admin);
+        if (check is not null) return check;
+
+        if (dto.Role == OrgRole.Owner)
+            return BadRequest("An organization can only have one owner. Invite as Admin or another role instead.");
+
+        var email = dto.Email.Trim().ToLowerInvariant();
+        var user = await Db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (user is null)
+            return NotFound("No registered user with that email address was found.");
+
+        var alreadyMember = await Db.UserOrganizations.AnyAsync(uo => uo.OrganizationId == id && uo.UserId == user.Id);
+        if (alreadyMember)
+            return Conflict("This user is already a member of the organization.");
+
+        Db.UserOrganizations.Add(new UserOrganization { UserId = user.Id, OrganizationId = id, Role = dto.Role });
+        await Db.SaveChangesAsync();
+
+        return Ok(new OrgMemberDto(user.Id, user.Email, user.DisplayName, dto.Role));
+    }
+
+    // Handles both "leaving" (isSelf) and an Admin/Owner removing someone else.
+    // The Owner can never be removed via this endpoint — self or otherwise.
+    [HttpDelete("{id:guid}/members/{userId:guid}")]
+    public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
+    {
+        var isSelf = userId == _userContext.UserId;
+        var check = isSelf
+            ? await CheckReadAccessAsync(id)
+            : await CheckWriteAccessAsync(id, OrgRole.Admin);
+        if (check is not null) return check;
+
+        var membership = await Db.UserOrganizations.FirstOrDefaultAsync(uo => uo.OrganizationId == id && uo.UserId == userId);
+        if (membership is null) return NotFound();
+
+        if (membership.Role == OrgRole.Owner)
+            return BadRequest(isSelf
+                ? "The organization owner cannot leave. Delete the organization instead if you want to give it up."
+                : "The organization owner cannot be removed.");
+
+        // An Admin can't remove another Admin — only the Owner outranks Admins.
+        if (!isSelf)
+        {
+            var actingRole = await _userContext.GetRoleAsync(id);
+            if (actingRole != OrgRole.Owner && membership.Role >= OrgRole.Admin)
+                return Forbid();
+        }
+
+        Db.UserOrganizations.Remove(membership);
+        await Db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Soft delete / restore ──
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var check = await CheckWriteAccessAsync(id, OrgRole.Owner);
+        if (check is not null) return check;
+
+        var org = await Db.Organizations.FirstOrDefaultAsync(o => o.Id == id);
+        if (org is null) return NotFound();
+
+        org.IsDeleted = true;
+        org.DeletedAt = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/restore")]
+    public async Task<IActionResult> Restore(Guid id)
+    {
+        // Organization's global filter hides soft-deleted rows — bypass it here
+        // so a deleted org can actually be found and restored.
+        var org = await Db.Organizations.IgnoreQueryFilters().FirstOrDefaultAsync(o => o.Id == id);
+        if (org is null) return NotFound();
+        if (!org.IsDeleted) return BadRequest("Organization is not deleted.");
+
+        var role = await Db.UserOrganizations
+            .Where(uo => uo.OrganizationId == id && uo.UserId == _userContext.UserId)
+            .Select(uo => (OrgRole?)uo.Role)
+            .FirstOrDefaultAsync();
+        if (role != OrgRole.Owner) return Forbid();
+
+        org.IsDeleted = false;
+        org.DeletedAt = null;
         await Db.SaveChangesAsync();
         return NoContent();
     }
