@@ -8,6 +8,12 @@ Built with modern technologies, ITDocs focuses on performance, simplicity, and a
 
 ---
 
+![ITDocs App Login gif](https://github.com/Lewan24/ITDocs/blob/main/Images/Login.gif)
+
+## Checkout [example images](https://github.com/Lewan24/ITDocs/blob/main/presentation.md) of working application and few first pages.
+
+---
+
 ## Quick Start
 
 ```bash
