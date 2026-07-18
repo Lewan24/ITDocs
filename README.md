@@ -25,6 +25,8 @@ Open:
 - API: http://localhost:8081
 - Adminer: http://localhost:8082
 
+## Check out [Installation Guide](https://github.com/Lewan24/ITDocs/blob/main/installation.md) to know better all settings and what you can do before start.
+
 ## Features
 
 ITDocs allows you to organize and connect every important part of your infrastructure in a single place.
