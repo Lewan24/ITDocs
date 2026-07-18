@@ -190,3 +190,42 @@ Before deploying:
 - Mount persistent Docker volumes for:
   - PostgreSQL data
   - uploaded files (`/app/storage`)
+ 
+---
+
+## HTTPS and Reverse Proxy (Recommended)
+If you don't want only local access and hosting.
+
+For production deployments it is recommended to expose ITDocs through a reverse proxy instead of publishing the containers directly.
+
+A common setup is:
+
+```
+Internet
+     │
+     ▼
+Nginx Proxy Manager
+     │
+     ├── Frontend → http://frontend:80
+     └── API      → http://api:8080
+```
+
+I personally recommend **Nginx Proxy Manager** because it makes the setup very simple:
+
+- Connect your own domain to the application.
+- Automatically obtain and renew Let's Encrypt SSL certificates.
+- Configure HTTPS without manually editing Nginx configuration.
+- Easily manage multiple applications from a web interface.
+
+When exposing ITDocs to the Internet, it is also recommended to:
+
+- Disable public user registration:
+  ```yaml
+  AppSettings__AllowRegister: false
+  ```
+- Set `AppSettings__AllowOrigins__*` to your actual frontend domain.
+- Use a strong `Jwt__SigningKey`.
+- Use strong PostgreSQL credentials.
+- Persist both the PostgreSQL data volume and the file storage directory.
+
+With this setup, Nginx Proxy Manager will handle SSL termination and forward traffic to the frontend and API containers over your internal Docker network.
