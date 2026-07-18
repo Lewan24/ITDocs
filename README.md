@@ -1,6 +1,3 @@
-This is almost final readme. Need to finish implementing few more things in app, configure docker compose and proper env variables before full release
-
-
 # ITDocs
 
 ITDocs is a modern, self-hosted IT documentation platform designed for system administrators, IT departments, managed service providers, and anyone responsible for maintaining technical infrastructure.
@@ -10,6 +7,23 @@ The project was created to provide a free, powerful alternative to commercial do
 Built with modern technologies, ITDocs focuses on performance, simplicity, and a clean technical user experience while offering advanced documentation capabilities for complex IT environments.
 
 ---
+
+## Quick Start
+
+```bash
+git clone https://github.com/Lewan24/ITDocs.git
+
+cd ITDocs
+
+docker compose --profile database up -d
+```
+Option **--profile database** is optional, you can skip this if you have already postgresql server. Then you just need to change connection string in **docker-compose.yml** file.
+
+Open:
+
+- Frontend: http://localhost
+- API: http://localhost:8081
+- Adminer: http://localhost:8082
 
 ## Features
 
