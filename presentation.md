@@ -19,6 +19,9 @@
 ## Knowledge Base
 ![Knowledge Base](https://github.com/Lewan24/ITDocs/blob/main/Images/KnowledgeBase.png)
 
+## Network Diagram
+![Network Diagram](https://github.com/Lewan24/ITDocs/blob/main/Images/NetworkDiagram.png)
+
 ---
 
 There is much more in the application, try it by yourself!
