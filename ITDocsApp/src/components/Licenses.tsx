@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star,
   AlertTriangle, CheckCircle2, Clock, Calendar, DollarSign,
@@ -369,15 +369,12 @@ export default function Licenses() {
   const [category, setCategory] = useState<LicenseCategory | 'All'>('All')
   const [statusFilter, setStatusFilter] = useState<LicenseStatus | 'All'>('All')
   const [sortBy, setSortBy] = useState<'name' | 'expiry' | 'cost'>('expiry')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => licenses[0]?.id ?? null
+  )
   const [modal, setModal] = useState<{ open: boolean; initial?: License }>({ open: false })
   const [catOpen, setCatOpen] = useState(false)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
-
-  // Pick a default selection once data has loaded, without clobbering a user's choice
-  useEffect(() => {
-    if (!selectedId && licenses.length > 0) setSelectedId(licenses[0].id)
-  }, [licenses, selectedId])
 
   const filtered = licenses
     .filter(l =>
@@ -393,7 +390,8 @@ export default function Licenses() {
       return a.name.localeCompare(b.name)
     })
 
-  const selected = licenses.find(l => l.id === selectedId) ?? null
+  const effectiveSelectedId = selectedId ?? licenses[0]?.id
+  const selected = licenses.find(l => l.id === effectiveSelectedId) ?? null
 
   // Note: this sums cost across licenses that may be tracked in different
   // currencies and labels the total "USD" — carried over from the original
@@ -414,7 +412,7 @@ export default function Licenses() {
 
   const handleDelete = async (id: string) => {
     await deleteLicense(id)
-    if (selectedId === id) setSelectedId(filtered.find(l => l.id !== id)?.id ?? null)
+    if (effectiveSelectedId === id) setSelectedId(filtered.find(l => l.id !== id)?.id ?? null)
   }
 
   if (isLoading) {
@@ -529,7 +527,7 @@ export default function Licenses() {
                   return (
                     <tr key={lic.id}
                       onClick={() => { setSelectedId(lic.id); setMobileDetailOpen(true) }}
-                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${selectedId === lic.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
+                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${effectiveSelectedId === lic.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-start gap-2">
                           {lic.starred && <Star size={10} className="text-yellow-400 fill-yellow-400 mt-0.5 flex-shrink-0" />}

@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { AppContext } from './useApp'
-import { useAuth } from './AuthContext'
+import { useAuth } from './useAuth'
 import type {
   Organization, Asset, PasswordEntry, Subnet, IPEntry, License, Contact, Contract,
   Plan, Incident, KnowledgeArticle, Task, Group, WarrantyItem,
-  DiagramNode, DiagramEdge, Toast, OrganizationSummary,
+  DiagramNode, DiagramEdge, Toast,
+  OrgMembership,
 } from '../api/types'
 import {
   organizationsApi, assetsApi, passwordsApi, subnetsApi, licensesApi,
@@ -28,7 +29,7 @@ const CURRENT_ORG_KEY = 'current_org_id'
 export function AppProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
 
-  const [orgs, setOrgs] = useState<OrganizationSummary[]>([])
+  const [orgs, setOrgs] = useState<OrgMembership[]>([])
   const [currentOrgId, setCurrentOrgId] = useState<string>(() => localStorage.getItem(CURRENT_ORG_KEY) ?? '')
   const [data, setData] = useState(emptyOrgState())
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -52,36 +53,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [toast])
 
-  // replace the org-loading effect with:
   useEffect(() => {
     if (!isAuthenticated) {
-      setOrgs([])
-      setCurrentOrgId('')
-      setData(emptyOrgState())
-      setIsLoading(false)
+      queueMicrotask(() => {
+        setOrgs([])
+        setCurrentOrgId('')
+        setData(emptyOrgState())
+        setIsLoading(false)
+      })
       return
     }
-    organizationsApi.getAll().then(async summaries => {
-      const full = await Promise.all(
-        summaries.map(async s => ({ ...(await organizationsApi.getById(s.id)), role: s.role }))
-      )
-      setOrgs(full)
-      setCurrentOrgId(prev => {
-        const stillValid = full.some(o => o.id === prev)
-        const next = stillValid ? prev : (full[0]?.id ?? '')
-        if (next) localStorage.setItem(CURRENT_ORG_KEY, next)
-        return next
+
+    organizationsApi.getAll()
+      .then(async summaries => {
+        const full = await Promise.all(
+          summaries.map(async s => ({
+            ...(await organizationsApi.getById(s.id)),
+            role: s.role
+          }))
+        )
+
+        setOrgs(full)
+
+        setCurrentOrgId(prev => {
+          const stillValid = full.some(o => o.id === prev)
+          const next = stillValid ? prev : (full[0]?.id ?? '')
+
+          if (next) {
+            localStorage.setItem(CURRENT_ORG_KEY, next)
+          }
+
+          return next
+        })
       })
-    }).catch(() => toast('Failed to load organizations', 'error'))
+      .catch(() => toast('Failed to load organizations', 'error'))
+
   }, [isAuthenticated, toast])
 
-  // ── Load all org-scoped resources whenever the current org changes ──
   useEffect(() => {
     if (!currentOrgId) {
-      setIsLoading(false)
+      queueMicrotask(() => setIsLoading(false))
       return
     }
-    setIsLoading(true)
+
+    queueMicrotask(() => setIsLoading(true))
 
     Promise.all([
       assetsApi.getAll(currentOrgId), passwordsApi.getAll(currentOrgId), subnetsApi.getAll(currentOrgId),
@@ -113,6 +128,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const created = await guarded(() => organizationsApi.create(o), 'Failed to create organization')
     setOrgs(prev => [...prev, { ...created, role: 'Owner' }])
     toast(`Organization "${o.name}" created`)
+  }, [guarded, toast])
+
+  const updateOrg = useCallback(async (id: string, o: Omit<Organization, 'id'>) => {
+    await guarded(() => organizationsApi.update(id, o), 'Failed to update organization')
+    setOrgs(prev => prev.map(x => x.id === id ? { ...x, ...o } : x))
+    toast(`Organization "${o.name}" updated`)
   }, [guarded, toast])
 
   // ── Assets ──
@@ -424,7 +445,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentOrgId, guarded])
 
   const value = {
-    orgs, currentOrg, switchOrg, addOrg,
+    orgs, currentOrg, switchOrg, addOrg, updateOrg,
     assets: data.assets, passwords: data.passwords, subnets: data.subnets, licenses: data.licenses,
     contacts: data.contacts, contracts: data.contracts, plans: data.plans, incidents: data.incidents,
     knowledgeArticles: data.knowledgeArticles, tasks: data.tasks,

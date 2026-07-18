@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import { AuthProvider } from './context/AuthContext'
 import { AppProvider } from './context/AppProvider'
 import Login from './components/Login'
 import Layout from './components/Layout'
@@ -20,6 +20,7 @@ import Warranty from './components/Warranty'
 import NetworkDiagram from './components/NetworkDiagram'
 import Settings from './components/Settings'
 import ToastContainer from './components/ui/Toast'
+import { useAuth } from './context/useAuth'
 
 export type View =
   | 'dashboard' | 'assets' | 'asset-detail' | 'passwords'
@@ -64,7 +65,7 @@ function AuthenticatedApp() {
       <Layout currentView={view} navigate={navigate} onLogout={logout}>
         {content}
       </Layout>
-      <ToastContainer />
+      <ToastContainer/>
     </AppProvider>
   )
 }

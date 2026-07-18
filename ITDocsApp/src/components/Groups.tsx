@@ -358,14 +358,12 @@ export default function Groups() {
 
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('All')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => groups[0]?.id ?? null
+  )
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [editGroup, setEditGroup] = useState<Group | null>(null)
-
-  useEffect(() => {
-    if (!selectedId && groups.length > 0) setSelectedId(groups[0].id)
-  }, [groups, selectedId])
 
   const filtered = groups.filter(g =>
     (typeFilter === 'All' || g.type === typeFilter) &&
@@ -374,7 +372,9 @@ export default function Groups() {
       g.type.toLowerCase().includes(query.toLowerCase()))
   )
 
-  const selected = groups.find(g => g.id === selectedId) ?? null
+  const effectiveSelectedId = selectedId ?? groups[0]?.id
+  const selected =
+    groups.find(g => g.id === effectiveSelectedId) ?? null
 
   const selectGroup = (id: string) => {
     setSelectedId(id)

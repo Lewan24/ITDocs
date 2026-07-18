@@ -11,6 +11,7 @@ public class AppMappingProfile : Profile
     {
         CreateMap<Organization, OrganizationDto>();
         CreateMap<CreateOrganizationDto, Organization>();
+        CreateMap<UpdateOrganizationDto, Organization>();
 
         CreateMap<Asset, AssetDto>();
         CreateMap<CreateAssetDto, Asset>();

@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ITDocsApi.Application;
+using ITDocsApi.Domain;
 using ITDocsApi.Domain.Dtos;
 using ITDocsApi.Domain.Entities;
 using ITDocsApi.Infrastructure;
+using Microsoft.Extensions.Options;
 
 namespace ITDocsApi.Api;
 
@@ -13,14 +15,15 @@ namespace ITDocsApi.Api;
 public class AuthController(
     AppDbContext db,
     IPasswordHasher hasher,
-    IJwtTokenService jwt) : ControllerBase
+    IJwtTokenService jwt,
+    IOptions<AppSettings> appSettings) : ControllerBase
 {
-    // ── Register ──
-    // First org membership is created as Owner. Adjust if you want registration
-    // to instead join an existing org via invite rather than always spinning up implicit access.
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterDto dto)
     {
+        if (!appSettings.Value.AllowRegister)
+            return Forbid();
+        
         if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
             return BadRequest("Email and password are required.");
 

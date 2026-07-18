@@ -297,7 +297,7 @@ function WarrantyDetail({ item, onBack, onEdit, onDelete }: {
   onEdit: () => void
   onDelete: () => void
 }) {
-  const { assets, toggleStarWarranty, uploadWarrantyDocument, toast } = useApp()
+  const { assets, toggleStarWarranty } = useApp()
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -480,14 +480,12 @@ export default function Warranty() {
 
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('All')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => warrantyItems[0]?.id ?? null
+  )
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [editItem, setEditItem] = useState<WarrantyItem | null>(null)
-
-  useEffect(() => {
-    if (!selectedId && warrantyItems.length > 0) setSelectedId(warrantyItems[0].id)
-  }, [warrantyItems, selectedId])
 
   const filtered = warrantyItems.filter(w =>
     (statusFilter === 'All' || w.status === statusFilter.toLowerCase()) &&
@@ -496,7 +494,8 @@ export default function Warranty() {
       w.serialNumber.toLowerCase().includes(query.toLowerCase()))
   )
 
-  const selected = warrantyItems.find(w => w.id === selectedId) ?? null
+  const effectiveSelectedId = selectedId ?? warrantyItems[0]?.id
+  const selected = warrantyItems.find(w => w.id === effectiveSelectedId) ?? null
 
   const selectItem = (id: string) => {
     setSelectedId(id)
@@ -563,7 +562,7 @@ export default function Warranty() {
             const s = STATUS_STYLES[w.status]
             return (
               <div key={w.id} onClick={() => selectItem(w.id)}
-                className={`w-full px-4 py-3 text-left transition-all hover:bg-navy-800/80 cursor-pointer ${selectedId === w.id ? 'bg-navy-800 md:border-r-2 md:border-blue-500' : ''}`}>
+                className={`w-full px-4 py-3 text-left transition-all hover:bg-navy-800/80 cursor-pointer ${effectiveSelectedId === w.id ? 'bg-navy-800 md:border-r-2 md:border-blue-500' : ''}`}>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-xs font-medium text-ink-primary truncate">{w.name}</span>
                   <button onClick={e => { e.stopPropagation(); toggleStarWarranty(w.id) }}

@@ -1,0 +1,43 @@
+services:
+
+  # OPTIONAL // depends if you have already postgres and want just another DB
+  db:
+    image: postgres:17
+
+    profiles:
+      - database
+
+    container_name: postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ITDocsApp
+      POSTGRES_USER: itdocs
+      POSTGRES_PASSWORD: itdocs
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      
+  # Just ui to check the postgresql its fully optional if you have already client or another app to check out dbs
+  adminer:
+    image: adminer
+
+    profiles:
+      - database
+
+    container_name: adminer
+
+    restart: unless-stopped
+
+    ports:
+      - "8082:8080"
+
+    depends_on:
+      - db
+      
+volumes:
+  postgres-data:

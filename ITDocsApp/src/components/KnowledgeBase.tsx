@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star, ArrowLeft,
   Tag, BookOpen, Loader2,
@@ -33,7 +33,7 @@ function renderMarkdown(content: string): React.ReactNode[] {
   let i = 0
 
   while (i < lines.length) {
-    const line = lines[i]
+    const line = lines[i] ?? ''
 
     if (line.startsWith('# ')) {
       nodes.push(<h1 key={i} className="text-base font-semibold text-ink-primary mt-4 mb-2 first:mt-0">{inlineFormat(line.slice(2))}</h1>)
@@ -267,10 +267,6 @@ export default function KnowledgeBase() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; initial?: KnowledgeArticle }>({ open: false })
 
-  useEffect(() => {
-    if (!selectedId && knowledgeArticles.length > 0) setSelectedId(knowledgeArticles[0].id)
-  }, [knowledgeArticles, selectedId])
-
   const categories = ['All', ...Array.from(new Set(knowledgeArticles.map(a => a.category)))]
 
   const filtered = knowledgeArticles.filter(a =>
@@ -281,7 +277,10 @@ export default function KnowledgeBase() {
      a.tags.some(t => t.toLowerCase().includes(query.toLowerCase())))
   )
 
-  const selected = knowledgeArticles.find(a => a.id === selectedId) ?? null
+  const selected =
+  knowledgeArticles.find(a => a.id === selectedId)
+  ?? knowledgeArticles[0]
+  ?? null
 
   const handleSave = async (data: Omit<KnowledgeArticle, 'id' | 'updatedAt'>) => {
     if (modal.initial) {

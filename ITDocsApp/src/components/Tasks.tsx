@@ -222,14 +222,14 @@ function TaskCard({ task, onEdit, onMove }: {
           onClick={() => onMove('prev')}
           disabled={statusIdx === 0}
           className="flex items-center gap-0.5 text-[10px] text-ink-muted hover:text-ink-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors px-1.5 py-0.5 rounded hover:bg-navy-700">
-          <ChevronLeft size={10} /> {statusIdx > 0 ? STATUS_CONFIG[STATUSES[statusIdx - 1]].label : ''}
+          <ChevronLeft size={10} /> {statusIdx > 0 ? STATUS_CONFIG[STATUSES[statusIdx - 1]!].label : ''}
         </button>
         <div className="flex-1" />
         <button
           onClick={() => onMove('next')}
           disabled={statusIdx === STATUSES.length - 1}
           className="flex items-center gap-0.5 text-[10px] text-ink-muted hover:text-ink-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors px-1.5 py-0.5 rounded hover:bg-navy-700">
-          {statusIdx < STATUSES.length - 1 ? STATUS_CONFIG[STATUSES[statusIdx + 1]].label : ''} <ChevronRight size={10} />
+          {statusIdx < STATUSES.length - 1 ? STATUS_CONFIG[STATUSES[statusIdx + 1]!].label : ''} <ChevronRight size={10} />
         </button>
       </div>
     </div>
@@ -263,7 +263,7 @@ export default function Tasks() {
     const idx = STATUSES.indexOf(task.status)
     const nextIdx = dir === 'next' ? idx + 1 : idx - 1
     if (nextIdx < 0 || nextIdx >= STATUSES.length) return
-    updateTask({ ...task, status: STATUSES[nextIdx] })
+    updateTask({ ...task, status: STATUSES[nextIdx]! })
   }
 
   const colHeader = (s: TaskStatus) => {

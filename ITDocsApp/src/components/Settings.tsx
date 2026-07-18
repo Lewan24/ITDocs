@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import {
-  User, Building2, Bell, Shield, Info, Plus, Trash2, Edit2,
-  Check, X, LogOut, Key, Monitor, Globe, Moon, ChevronRight,
-  AlertTriangle, CheckCircle2,
+  User, Building2, Bell, Shield, Info, Plus, Edit2,
+  Check, X, LogOut, Key, Monitor, Globe, Moon, Sun, ChevronRight,
+  AlertTriangle, CheckCircle2, Loader2,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Organization } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
+import { toggleTheme, getTheme } from '../lib/theme'
+import { ApiError } from '../api/http'
+import type { Organization, OrganizationSummary } from '../api/types'
 import type { View } from '../App'
 
 type Section = 'profile' | 'organizations' | 'appearance' | 'security' | 'notifications' | 'about'
@@ -29,7 +32,7 @@ const ACCENT_COLORS = [
 ]
 
 function inp(err?: string) {
-  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-sm placeholder:text-ink-muted focus:outline-none transition-colors ${err ? 'border-red-500/50' : 'border-edge-default focus:border-blue-500'}`
+  return `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-sm placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50' : 'border-edge-default focus:border-blue-500'}`
 }
 
 function SectionCard({ children }: { children: React.ReactNode }) {
@@ -71,41 +74,51 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 
 // ─── Org edit modal ──────────────────────────────────────────────────────────
 
-function OrgEditModal({ org, onClose, onSave }: { org: Organization; onClose: () => void; onSave: (o: Organization) => void }) {
+function OrgEditModal({ org, onClose, onSave }: {
+  org: OrganizationSummary & Partial<Organization>
+  onClose: () => void
+  onSave: (data: Omit<Organization, 'id'>) => Promise<void>
+}) {
   const [name, setName] = useState(org.name)
-  const [desc, setDesc] = useState(org.description)
-  const [color, setColor] = useState(org.color)
+  const [desc, setDesc] = useState(org.description ?? '')
+  const [color, setColor] = useState(org.color ?? '#2563eb')
+  const [submitting, setSubmitting] = useState(false)
   const COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706', '#0891b2', '#be185d', '#374151']
 
-  const submit = () => {
-    if (!name.trim()) return
+  const submit = async () => {
+    if (!name.trim() || submitting) return
     const initials = name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    onSave({ ...org, name: name.trim(), description: desc, color, initials })
-    onClose()
+    setSubmitting(true)
+    try {
+      await onSave({ name: name.trim(), description: desc, color, initials })
+      onClose()
+    } catch {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !submitting && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle">
           <h2 className="text-sm font-semibold text-ink-primary">Edit Organization</h2>
-          <button onClick={onClose} className="p-1 rounded-md text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors"><X size={14} /></button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="p-1 rounded-md text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} className={inp()} autoFocus />
+            <input value={name} onChange={e => setName(e.target.value)} className={inp()} autoFocus disabled={submitting} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
-            <input value={desc} onChange={e => setDesc(e.target.value)} className={inp()} />
+            <input value={desc} onChange={e => setDesc(e.target.value)} className={inp()} disabled={submitting} />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-2">Color</label>
             <div className="flex gap-2">
               {COLORS.map(c => (
-                <button key={c} onClick={() => setColor(c)} className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
+                <button key={c} onClick={() => !submitting && setColor(c)} className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
                   style={{ backgroundColor: c, borderColor: color === c ? '#fff' : 'transparent' }}>
                   {color === c && <Check size={10} className="text-white" />}
                 </button>
@@ -114,8 +127,11 @@ function OrgEditModal({ org, onClose, onSave }: { org: Organization; onClose: ()
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-edge-subtle bg-navy-900/40">
-          <button onClick={onClose} className="px-3.5 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors">Cancel</button>
-          <button onClick={submit} className="px-3.5 py-1.5 rounded-lg text-white text-xs font-medium active:scale-95 transition-all" style={{ backgroundColor: color }}>Save</button>
+          <button onClick={() => !submitting && onClose()} disabled={submitting} className="px-3.5 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="px-3.5 py-1.5 rounded-lg text-white text-xs font-medium active:scale-95 transition-all disabled:opacity-60 flex items-center gap-1.5" style={{ backgroundColor: color }}>
+            {submitting && <Loader2 size={11} className="animate-spin" />}
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
         </div>
       </div>
     </div>
@@ -125,16 +141,30 @@ function OrgEditModal({ org, onClose, onSave }: { org: Organization; onClose: ()
 // ─── Sections ─────────────────────────────────────────────────────────────────
 
 function ProfileSection() {
+  const { user, updateProfile } = useAuth()
+  const { currentOrg } = useApp()
   const [editing, setEditing] = useState(false)
-  const [name, setName] = useState('John Doe')
-  const [email, setEmail] = useState('admin@corp.local')
-  const [role, setRole] = useState('Administrator')
+  const [name, setName] = useState(user?.displayName ?? '')
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const save = () => {
-    setEditing(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const initials = (user?.displayName ?? '?').split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+
+  const save = async () => {
+    if (!name.trim() || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      await updateProfile(name.trim())
+      setEditing(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to save profile')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -143,8 +173,10 @@ function ProfileSection() {
         <SectionHeader title="Account Information" desc="Your personal profile details" action={
           editing ? (
             <div className="flex gap-2">
-              <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">Cancel</button>
-              <button onClick={save} className="px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all" style={{ boxShadow: '0 1px 8px rgba(37,99,235,0.3)' }}>Save</button>
+              <button onClick={() => { setEditing(false); setName(user?.displayName ?? '') }} disabled={saving} className="px-3 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors disabled:opacity-40">Cancel</button>
+              <button onClick={save} disabled={saving} className="px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all disabled:opacity-60 flex items-center gap-1.5" style={{ boxShadow: '0 1px 8px rgba(37,99,235,0.3)' }}>
+                {saving && <Loader2 size={11} className="animate-spin" />} Save
+              </button>
             </div>
           ) : (
             <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">
@@ -154,36 +186,28 @@ function ProfileSection() {
         } />
         <div className="px-5 py-5">
           <div className="flex items-center gap-4 mb-5">
-            <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center text-xl font-semibold text-white flex-shrink-0">JD</div>
+            <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center text-xl font-semibold text-white flex-shrink-0">{initials}</div>
             <div>
-              <p className="text-sm font-semibold text-ink-primary">{name}</p>
-              <p className="text-xs text-ink-muted">{email}</p>
-              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/25 mt-1">{role}</span>
+              <p className="text-sm font-semibold text-ink-primary">{user?.displayName}</p>
+              <p className="text-xs text-ink-muted">{user?.email}</p>
+              {currentOrg && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/25 mt-1">{currentOrg.role} · {currentOrg.name}</span>
+              )}
             </div>
             {saved && <span className="flex items-center gap-1 text-xs text-green-400 ml-auto"><CheckCircle2 size={13} /> Saved</span>}
           </div>
           {editing ? (
             <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Full Name</label>
-                  <input value={name} onChange={e => setName(e.target.value)} className={inp()} />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Email</label>
-                  <input value={email} onChange={e => setEmail(e.target.value)} className={inp()} />
-                </div>
-              </div>
               <div>
-                <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Role</label>
-                <select value={role} onChange={e => setRole(e.target.value)} className={inp()}>
-                  {['Administrator', 'Editor', 'Viewer', 'Auditor'].map(r => <option key={r}>{r}</option>)}
-                </select>
+                <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Full Name</label>
+                <input value={name} onChange={e => setName(e.target.value)} className={inp()} disabled={saving} />
               </div>
+              {error && <p className="text-xs text-red-400">{error}</p>}
+              <p className="text-[11px] text-ink-muted">Email can't be changed here — contact your administrator if it needs to be updated.</p>
             </div>
           ) : (
             <div className="space-y-2 text-xs">
-              {[['Full Name', name], ['Email', email], ['Role', role], ['Last Login', 'Today, 09:14 AM'], ['Member Since', 'January 2024']].map(([k, v]) => (
+              {[['Full Name', user?.displayName ?? '—'], ['Email', user?.email ?? '—']].map(([k, v]) => (
                 <div key={k} className="flex items-center gap-2 py-1.5 border-b border-edge-subtle last:border-0">
                   <span className="text-ink-muted w-28 flex-shrink-0">{k}</span>
                   <span className="text-ink-secondary">{v}</span>
@@ -198,19 +222,27 @@ function ProfileSection() {
 }
 
 function OrganizationsSection({ navigate }: { navigate: (v: View) => void }) {
-  const { orgs, currentOrg, switchOrg, addOrg, toast } = useApp()
-  const [editTarget, setEditTarget] = useState<Organization | null>(null)
+  const { orgs, currentOrg, switchOrg, addOrg, updateOrg, toast } = useApp()
+  const [editTarget, setEditTarget] = useState<OrganizationSummary | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newColor, setNewColor] = useState('#2563eb')
+  const [creating, setCreating] = useState(false)
   const COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706', '#0891b2', '#be185d']
 
-  const submitNew = () => {
-    if (!newName.trim()) return
+  const submitNew = async () => {
+    if (!newName.trim() || creating) return
     const initials = newName.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    addOrg({ name: newName.trim(), description: newDesc, color: newColor, initials })
-    setNewName(''); setNewDesc(''); setAddOpen(false)
+    setCreating(true)
+    try {
+      await addOrg({ name: newName.trim(), description: newDesc, color: newColor, initials })
+      setNewName(''); setNewDesc(''); setAddOpen(false)
+    } catch {
+      // error toast already fired by AppProvider
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -228,25 +260,27 @@ function OrganizationsSection({ navigate }: { navigate: (v: View) => void }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Name *</label>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Remote Office" className={inp()} autoFocus />
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Remote Office" className={inp()} autoFocus disabled={creating} />
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
-                <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Optional" className={inp()} />
+                <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Optional" className={inp()} disabled={creating} />
               </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex gap-2">
                 {COLORS.map(c => (
-                  <button key={c} onClick={() => setNewColor(c)} className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+                  <button key={c} onClick={() => !creating && setNewColor(c)} className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
                     style={{ backgroundColor: c, borderColor: newColor === c ? '#fff' : 'transparent' }}>
                     {newColor === c && <Check size={9} className="text-white" />}
                   </button>
                 ))}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setAddOpen(false)} className="px-3 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">Cancel</button>
-                <button onClick={submitNew} className="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all" style={{ backgroundColor: newColor }}>Create</button>
+                <button onClick={() => setAddOpen(false)} disabled={creating} className="px-3 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors disabled:opacity-40">Cancel</button>
+                <button onClick={submitNew} disabled={creating} className="px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all disabled:opacity-60 flex items-center gap-1.5" style={{ backgroundColor: newColor }}>
+                  {creating && <Loader2 size={11} className="animate-spin" />} Create
+                </button>
               </div>
             </div>
           </div>
@@ -254,18 +288,19 @@ function OrganizationsSection({ navigate }: { navigate: (v: View) => void }) {
 
         <div className="divide-y divide-edge-subtle">
           {orgs.map(org => (
-            <div key={org.id} className={`flex items-center gap-3 px-5 py-4 ${currentOrg.id === org.id ? 'bg-blue-500/5' : ''}`}>
+            <div key={org.id} className={`flex items-center gap-3 px-5 py-4 ${currentOrg?.id === org.id ? 'bg-blue-500/5' : ''}`}>
               <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
                 style={{ backgroundColor: org.color }}>{org.initials}</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-ink-primary">{org.name}</p>
-                  {currentOrg.id === org.id && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">active</span>}
+                  {currentOrg?.id === org.id && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">active</span>}
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-navy-700 text-ink-muted border border-edge-subtle">{org.role}</span>
                 </div>
                 {org.description && <p className="text-xs text-ink-muted mt-0.5">{org.description}</p>}
               </div>
               <div className="flex gap-1 flex-shrink-0">
-                {currentOrg.id !== org.id && (
+                {currentOrg?.id !== org.id && (
                   <button onClick={() => { switchOrg(org.id); navigate('dashboard'); toast(`Switched to ${org.name}`, 'info') }}
                     className="px-2.5 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">
                     Switch
@@ -279,15 +314,20 @@ function OrganizationsSection({ navigate }: { navigate: (v: View) => void }) {
       </SectionCard>
 
       {editTarget && (
-        <OrgEditModal org={editTarget} onClose={() => setEditTarget(null)} onSave={_updated => {
-          setEditTarget(null)
-        }} />
+        <OrgEditModal
+          org={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={data => updateOrg(editTarget.id, data)}
+        />
       )}
     </div>
   )
 }
 
+// Theme is synced with the same lib/theme functions Layout.tsx uses — toggling
+// here and toggling in the topbar reflect the same global state.
 function AppearanceSection() {
+  const [theme, setTheme] = useState(getTheme)
   const [accent, setAccent] = useState('#2563eb')
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable')
   const [monoFont, setMonoFont] = useState(true)
@@ -296,12 +336,19 @@ function AppearanceSection() {
     <div className="space-y-4">
       <SectionCard>
         <SectionHeader title="Theme" desc="Visual appearance settings" />
-        <Row label="Color scheme" sub="Dark mode is always on">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default text-xs text-ink-secondary">
-            <Moon size={12} className="text-blue-400" /> Dark
-          </div>
+        <Row label="Color scheme" sub="Switch between light and dark mode">
+          <button
+            onClick={() => setTheme(toggleTheme())}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default text-xs text-ink-secondary hover:border-edge-strong transition-colors"
+          >
+            {theme === 'dark' ? <Moon size={12} className="text-blue-400" /> : <Sun size={12} className="text-orange-400" />}
+            {theme === 'dark' ? 'Dark' : 'Light'}
+          </button>
         </Row>
-        <Row label="Accent color" sub="Used for active states and buttons">
+        {/* Accent color, density, and monospace toggle below are display
+            preferences held only in this session — there's no backend endpoint
+            for per-user UI preferences yet, so they reset on reload. */}
+        <Row label="Accent color" sub="Used for active states and buttons (this session only)">
           <div className="flex gap-2">
             {ACCENT_COLORS.map(c => (
               <button key={c.value} onClick={() => setAccent(c.value)} title={c.name}
@@ -312,7 +359,7 @@ function AppearanceSection() {
             ))}
           </div>
         </Row>
-        <Row label="Density" sub="Controls spacing of lists and tables">
+        <Row label="Density" sub="Controls spacing of lists and tables (this session only)">
           <div className="flex rounded-lg overflow-hidden border border-edge-default">
             {(['comfortable', 'compact'] as const).map(d => (
               <button key={d} onClick={() => setDensity(d)}
@@ -322,31 +369,18 @@ function AppearanceSection() {
             ))}
           </div>
         </Row>
-        <Row label="Monospace font for data" sub="IP addresses, serial numbers, keys">
+        <Row label="Monospace font for data" sub="IP addresses, serial numbers, keys (this session only)">
           <Toggle value={monoFont} onChange={setMonoFont} />
         </Row>
       </SectionCard>
 
       <SectionCard>
-        <SectionHeader title="Language & Region" />
-        <Row label="Language">
-          <select className="px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default text-xs text-ink-secondary focus:outline-none">
-            <option>English (US)</option>
-            <option>English (UK)</option>
-            <option>German</option>
-            <option>Czech</option>
-          </select>
-        </Row>
-        <Row label="Date format">
-          <select className="px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default text-xs text-ink-secondary focus:outline-none">
-            <option>YYYY-MM-DD</option>
-            <option>DD/MM/YYYY</option>
-            <option>MM/DD/YYYY</option>
-          </select>
-        </Row>
+        <SectionHeader title="Language & Region" desc="Not yet configurable — shown for reference" />
+        <Row label="Language"><span className="text-xs text-ink-muted">English (US)</span></Row>
+        <Row label="Date format"><span className="text-xs text-ink-muted">YYYY-MM-DD</span></Row>
         <Row label="Timezone">
-          <div className="flex items-center gap-1.5 text-xs text-ink-secondary">
-            <Globe size={12} className="text-ink-muted" /> UTC+1 (CET)
+          <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <Globe size={12} /> Browser default
           </div>
         </Row>
       </SectionCard>
@@ -355,77 +389,80 @@ function AppearanceSection() {
 }
 
 function SecuritySection() {
-  const [twoFactor, setTwoFactor] = useState(false)
-  const [sessionTimeout, setSessionTimeout] = useState('8h')
-  const [auditLog, setAuditLog] = useState(true)
-  const [ipRestriction, setIpRestriction] = useState(false)
+  const { changePassword } = useAuth()
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [saving, setSaving] = useState(false)
   const [pwChanged, setPwChanged] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submitPasswordChange = async () => {
+    if (!currentPw || newPw.length < 8 || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      await changePassword(currentPw, newPw)
+      setCurrentPw('')
+      setNewPw('')
+      setPwChanged(true)
+      setTimeout(() => setPwChanged(false), 3000)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update password')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <SectionCard>
-        <SectionHeader title="Authentication" />
-        <Row label="Two-factor authentication" sub={twoFactor ? 'Enabled — authenticator app' : 'Strongly recommended'}>
-          <Toggle value={twoFactor} onChange={setTwoFactor} />
-        </Row>
-        <Row label="Session timeout" sub="Auto-logout after inactivity">
-          <select value={sessionTimeout} onChange={e => setSessionTimeout(e.target.value)}
-            className="px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default text-xs text-ink-secondary focus:outline-none">
-            {['1h', '4h', '8h', '24h', 'never'].map(t => <option key={t}>{t}</option>)}
-          </select>
-        </Row>
-        <Row label="Activity audit log" sub="Record all changes and logins">
-          <Toggle value={auditLog} onChange={setAuditLog} />
-        </Row>
-        <Row label="IP allowlist" sub="Restrict access to specific IPs">
-          <Toggle value={ipRestriction} onChange={setIpRestriction} />
-        </Row>
-      </SectionCard>
-
       <SectionCard>
         <SectionHeader title="Password" />
         <div className="px-5 py-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Current Password</label>
-              <input type="password" placeholder="••••••••" className={inp()} />
+              <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="••••••••" className={inp()} disabled={saving} />
             </div>
             <div>
               <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">New Password</label>
-              <input type="password" placeholder="••••••••" className={inp()} />
+              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="At least 8 characters" className={inp()} disabled={saving} minLength={8} />
             </div>
           </div>
+          {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex items-center justify-between">
             {pwChanged && <span className="flex items-center gap-1 text-xs text-green-400"><CheckCircle2 size={12} /> Password updated</span>}
-            <button onClick={() => { setPwChanged(true); setTimeout(() => setPwChanged(false), 3000) }}
-              className="ml-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all">
-              <Key size={11} /> Update Password
+            <button onClick={submitPasswordChange} disabled={saving || !currentPw || newPw.length < 8}
+              className="ml-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium transition-all disabled:opacity-50">
+              {saving ? <Loader2 size={11} className="animate-spin" /> : <Key size={11} />}
+              {saving ? 'Updating…' : 'Update Password'}
             </button>
           </div>
         </div>
       </SectionCard>
 
+      {/* The controls below (2FA, session timeout, audit log, IP allowlist, API
+          tokens) describe features the backend doesn't implement yet. Rather
+          than fabricate persisted state or fake tokens, they're shown as
+          disabled/informational so nothing here misrepresents itself as saved. */}
       <SectionCard>
-        <SectionHeader title="API Access" desc="Personal access tokens for API integrations" action={
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-navy-700 text-ink-secondary text-xs border border-edge-default hover:bg-navy-600 transition-colors">
-            <Plus size={11} /> Generate
-          </button>
-        } />
-        <div className="px-5 py-4">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-navy-700 border border-edge-subtle">
-            <Key size={14} className="text-blue-400 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-mono text-ink-secondary truncate">itdocs_pat_••••••••••••••••XK9m</p>
-              <p className="text-[10px] text-ink-muted mt-0.5">Created 2026-01-15 · Last used 2h ago</p>
-            </div>
-            <button className="p-1 rounded text-ink-muted hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
-          </div>
-        </div>
+        <SectionHeader title="Additional Security" desc="Not yet available in this deployment" />
+        <Row label="Two-factor authentication" sub="Not yet supported">
+          <span className="text-[10px] font-mono text-ink-muted px-2 py-1 rounded bg-navy-700 border border-edge-subtle">Coming soon</span>
+        </Row>
+        <Row label="Activity audit log" sub="Not yet supported">
+          <span className="text-[10px] font-mono text-ink-muted px-2 py-1 rounded bg-navy-700 border border-edge-subtle">Coming soon</span>
+        </Row>
+        <Row label="IP allowlist" sub="Not yet supported">
+          <span className="text-[10px] font-mono text-ink-muted px-2 py-1 rounded bg-navy-700 border border-edge-subtle">Coming soon</span>
+        </Row>
       </SectionCard>
     </div>
   )
 }
 
+// No backend endpoint stores per-user notification preferences yet — these
+// toggles are local-only for now and reset on reload, same caveat as the
+// cosmetic appearance settings above.
 function NotificationsSection() {
   const [prefs, setPrefs] = useState({
     licenseExpiry: true, assetOffline: true, passwordAudit: false,
@@ -444,7 +481,7 @@ function NotificationsSection() {
 
   return (
     <SectionCard>
-      <SectionHeader title="Notification Preferences" desc="Choose what you want to be notified about" />
+      <SectionHeader title="Notification Preferences" desc="Choose what you want to be notified about (not yet persisted)" />
       {rows.map(r => (
         <Row key={r.key} label={r.label} sub={r.sub}>
           <Toggle value={prefs[r.key]} onChange={() => toggle(r.key)} />
@@ -465,36 +502,9 @@ function AboutSection() {
           </div>
           <div>
             <p className="text-sm font-semibold text-ink-primary">ITDocs</p>
-            <p className="text-xs text-ink-muted">Enterprise IT Documentation Platform</p>
-            <p className="text-[10px] font-mono text-ink-muted mt-1">v2.0.0 · Build 2026.07.14</p>
+            <p className="text-xs text-ink-muted">IT Documentation Platform</p>
           </div>
         </div>
-        {[
-          ['Version', 'v2.0.0'],
-          ['Build date', '2026-07-14'],
-          ['React', '19'],
-          ['Tailwind CSS', 'v4'],
-          ['License', 'Enterprise'],
-        ].map(([k, v]) => (
-          <Row key={k} label={k}><span className="text-xs font-mono text-ink-secondary">{v}</span></Row>
-        ))}
-      </SectionCard>
-
-      <SectionCard>
-        <SectionHeader title="Changelog" desc="Recent updates" />
-        {[
-          { ver: 'v2.0.0', date: '2026-07-14', notes: 'Multi-organization support, Networks IP management, full Licenses CRUD, mobile layout' },
-          { ver: 'v1.5.0', date: '2026-06-01', notes: 'Password vault with strength meter, clipboard copy, generated passwords' },
-          { ver: 'v1.0.0', date: '2026-05-01', notes: 'Initial release: Assets, Passwords, Documentation, Dashboard' },
-        ].map(entry => (
-          <div key={entry.ver} className="px-5 py-4 border-b border-edge-subtle last:border-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono font-semibold text-ink-primary">{entry.ver}</span>
-              <span className="text-[10px] font-mono text-ink-muted">{entry.date}</span>
-            </div>
-            <p className="text-xs text-ink-secondary">{entry.notes}</p>
-          </div>
-        ))}
       </SectionCard>
 
       <SectionCard>
@@ -502,17 +512,17 @@ function AboutSection() {
         <div className="px-5 py-4 space-y-3">
           <div className="flex items-center justify-between p-3 rounded-lg border border-orange-500/25 bg-orange-500/5">
             <div>
-              <p className="text-xs font-medium text-orange-400 flex items-center gap-1.5"><AlertTriangle size={12} /> Export All Data</p>
-              <p className="text-[11px] text-ink-muted mt-0.5">Download all organizations, assets and passwords as JSON</p>
+              <p className="text-xs font-medium text-orange-400 flex items-center gap-1.5"><AlertTriangle size={12} /> Export Data</p>
+              <p className="text-[11px] text-ink-muted mt-0.5">Not yet available in this deployment</p>
             </div>
-            <button className="px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-400 text-xs hover:bg-orange-500/10 transition-colors">Export</button>
+            <button disabled className="px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-400/50 text-xs cursor-not-allowed">Export</button>
           </div>
           <div className="flex items-center justify-between p-3 rounded-lg border border-red-500/25 bg-red-500/5">
             <div>
               <p className="text-xs font-medium text-red-400 flex items-center gap-1.5"><LogOut size={12} /> Sign Out Everywhere</p>
-              <p className="text-[11px] text-ink-muted mt-0.5">Invalidate all sessions across all devices</p>
+              <p className="text-[11px] text-ink-muted mt-0.5">Not yet available in this deployment</p>
             </div>
-            <button className="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 text-xs hover:bg-red-500/10 transition-colors">Sign out</button>
+            <button disabled className="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400/50 text-xs cursor-not-allowed">Sign out</button>
           </div>
         </div>
       </SectionCard>
@@ -547,7 +557,6 @@ export default function Settings({ navigate }: { navigate: (v: View) => void }) 
       </div>
 
       <div className="flex flex-col md:flex-row gap-4">
-        {/* Sidebar nav — always visible on desktop, collapsible on mobile */}
         <div className={`md:w-52 flex-shrink-0 ${mobileSection ? 'hidden' : ''} md:block`}>
           <div className="bg-navy-800 border border-edge-subtle rounded-xl overflow-hidden">
             {SECTIONS.map(s => (
@@ -565,14 +574,11 @@ export default function Settings({ navigate }: { navigate: (v: View) => void }) 
           </div>
         </div>
 
-        {/* Content panel */}
         <div className={`flex-1 min-w-0 ${!mobileSection ? 'hidden' : ''} md:block`}>
-          {/* Mobile back button */}
           <button onClick={() => setMobileSection(false)} className="md:hidden flex items-center gap-2 text-xs text-blue-400 mb-3 hover:text-blue-300 transition-colors">
             ← Back to settings
           </button>
 
-          {/* Section title on mobile */}
           <div className="md:hidden mb-4">
             <h2 className="text-base font-semibold text-ink-primary flex items-center gap-2">
               <span className="text-blue-400">{activeSection.icon}</span> {activeSection.label}

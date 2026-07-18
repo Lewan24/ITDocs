@@ -9,6 +9,7 @@ export const organizationsApi = {
   getAll: () => http.get<OrganizationSummary[]>('/organizations'),
   getById: (id: string) => http.get<Organization>(`/organizations/${id}`),
   create: (data: Omit<Organization, 'id'>) => http.post<Organization>('/organizations', data),
+  update: (id: string, data: Omit<Organization, 'id'>) => http.put<void>(`/organizations/${id}`, data),
 }
 
 export const assetsApi = {

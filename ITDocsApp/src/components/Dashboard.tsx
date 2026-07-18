@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Server, KeyRound, FileText, CreditCard, ArrowRight, Clock, Star, AlertTriangle, CheckCircle2, Activity, Plus, TrendingUp, Loader2 } from 'lucide-react'
+import { Server, KeyRound, FileText, CreditCard, ArrowRight, Clock, Star, AlertTriangle, CheckCircle2, Plus, TrendingUp, Loader2 } from 'lucide-react'
 import { useApp } from '../context/useApp'
 import type { View } from '../App'
 
@@ -69,6 +69,15 @@ function PulsingDot({ status }: { status: string }) {
 
 export default function Dashboard({ navigate }: Props) {
   const { assets, passwords, licenses, knowledgeArticles, currentOrg, isLoading } = useApp()
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now())
+    }, 60 * 60 * 1000) // co godzinę
+
+    return () => clearInterval(timer)
+  }, [])
 
   if (isLoading) {
     return (
@@ -91,7 +100,11 @@ export default function Dashboard({ navigate }: Props) {
 
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
 
-  const daysUntil = (dateStr: string) => Math.max(0, Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000))
+  const daysUntil = (dateStr: string) =>
+    Math.max(
+      0,
+      Math.ceil((new Date(dateStr).getTime() - now) / 86400000)
+    )
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">

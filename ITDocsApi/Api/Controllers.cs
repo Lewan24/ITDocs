@@ -46,6 +46,20 @@ public class OrganizationsController(AppDbContext db, IMapper mapper, ICurrentUs
         await Db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = org.Id }, mapper.Map<OrganizationDto>(org));
     }
+    
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, UpdateOrganizationDto dto)
+    {
+        var check = await CheckWriteAccessAsync(id, OrgRole.Admin);
+        if (check is not null) return check;
+
+        var org = await Db.Organizations.FirstOrDefaultAsync(o => o.Id == id);
+        if (org is null) return NotFound();
+
+        mapper.Map(dto, org);
+        await Db.SaveChangesAsync();
+        return NoContent();
+    }
 }
 
 // ─── AssetsController ───────────────────────────────────────────────────────

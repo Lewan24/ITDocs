@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star, ArrowLeft,
   Phone, Mail, Building2, User, Tag, Copy, Check, Loader2,
@@ -305,14 +305,12 @@ export default function Contacts() {
   const { contacts, isLoading, addContact, updateContact, deleteContact, toggleStarContact } = useApp()
   const [query, setQuery] = useState('')
   const [starOnly, setStarOnly] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => contacts[0]?.id ?? null
+  )
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; initial?: Contact }>({ open: false })
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null)
-
-  useEffect(() => {
-    if (!selectedId && contacts.length > 0) setSelectedId(contacts[0].id)
-  }, [contacts, selectedId])
 
   const filtered = contacts.filter(c =>
     (!starOnly || c.starred) &&
@@ -322,7 +320,9 @@ export default function Contacts() {
      c.phone.toLowerCase().includes(query.toLowerCase()))
   )
 
-  const selected = contacts.find(c => c.id === selectedId) ?? null
+  const effectiveSelectedId = selectedId ?? contacts[0]?.id
+  const selected =
+    contacts.find(c => c.id === effectiveSelectedId) ?? null
 
   const handleSave = async (data: Omit<Contact, 'id'>) => {
     if (modal.initial) {
@@ -335,7 +335,7 @@ export default function Contacts() {
 
   const handleDelete = async (c: Contact) => {
     await deleteContact(c.id)
-    if (selectedId === c.id) setSelectedId(filtered.find(x => x.id !== c.id)?.id ?? null)
+    if (effectiveSelectedId === c.id) setSelectedId(filtered.find(x => x.id !== c.id)?.id ?? null)
     setMobileDetailOpen(false)
     setDeleteTarget(null)
   }
@@ -396,7 +396,7 @@ export default function Contacts() {
               </div>
             ) : (
               filtered.map(c => (
-                <ContactItem key={c.id} contact={c} selected={selectedId === c.id} onClick={() => selectContact(c)} />
+                <ContactItem key={c.id} contact={c} selected={effectiveSelectedId === c.id} onClick={() => selectContact(c)} />
               ))
             )}
           </div>

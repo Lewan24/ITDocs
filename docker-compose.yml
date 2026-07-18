@@ -1,0 +1,98 @@
+services:
+
+  # OPTIONAL // depends if you have already postgres and want just another DB
+  db:
+    image: postgres:17
+
+    profiles:
+      - database
+
+    container_name: postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ITDocsApp
+      POSTGRES_USER: itdocs
+      POSTGRES_PASSWORD: itdocs
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      
+  # Just ui to check the postgresql its fully optional if you have already client or another app to check out dbs
+  adminer:
+    image: adminer
+
+    profiles:
+      - database
+
+    container_name: adminer
+
+    restart: unless-stopped
+
+    ports:
+      - "8082:8080"
+
+    depends_on:
+      - db
+
+  api:
+    image: lewan24/itdocs-api:latest
+    build:
+      context: ./ITDocsApi
+      
+    container_name: itdocsapi
+
+    restart: unless-stopped
+
+    ports:
+      - "8081:8080"
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+      ConnectionStrings__Default: >
+        Host=db;
+        Port=5432;
+        Database=ITDocsApp;
+        Username=itdocs;
+        Password=itdocs
+        
+      Jwt__Issuer: ITDocsApp
+      Jwt__Audience: ITDocsApp.Client
+      # Use custom 32-byte secret key22
+      Jwt__SigningKey: YOUR_SUPER_SECRET_KEY11111111111
+
+      # you can create a volume and bind to it to store documents somewhere like on another server or something
+      FileStorage__RootPath: /app/storage
+
+      AppSettings__ITDocsAdmin: admin@itdocs.pl
+      AppSettings__AllowRegister: false
+      # Make sure there is provided your domain (frontend) url, this is required for CORS settings and security
+      AppSettings__AllowOrigins__0: "http://localhost:80"
+      AppSettings__AllowOrigins__1: "http://localhost"
+
+  frontend:
+    image: lewan24/itdocs-web:latest
+    build:
+      context: ./ITDocsApp
+      
+    container_name: itdocsweb
+
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+
+    environment:
+      # API url, the target domain where the ITDocs will be available at
+      ITDOCS_API_BASE_URL: http://localhost:8081/api
+
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:

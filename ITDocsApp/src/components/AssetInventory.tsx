@@ -67,7 +67,17 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose, submitting])
 
-  const set = (k: string, v: unknown) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
+  const set = (key: string, value: unknown) => {
+    setForm(prev => ({
+      ...prev,
+      [key]: value
+    }))
+
+    setErrors(prev => ({
+      ...prev,
+      [key]: ''
+    }))
+  }
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase()
@@ -208,13 +218,6 @@ function AssetForm({ initial, onSave, onClose }: AssetFormProps) {
 function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm: () => Promise<void>; onCancel: () => void }) {
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (deleting) return; if (e.key === 'Escape') onCancel(); if (e.key === 'Enter') handleConfirm() }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onConfirm, onCancel, deleting])
-
   const handleConfirm = async () => {
     if (deleting) return
     setDeleting(true)
@@ -224,6 +227,13 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
       setDeleting(false) // stay open so the user can retry or cancel
     }
   }
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (deleting) return; if (e.key === 'Escape') onCancel(); if (e.key === 'Enter') handleConfirm() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onConfirm, onCancel, deleting])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !deleting && onCancel()}>
@@ -300,9 +310,29 @@ export default function AssetInventory({ navigate }: Props) {
   const safePage = Math.min(page, pages)
   const paged = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
 
-  const sort = (key: SortKey) => { if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortKey(key); setSortDir('asc') } }
+  const sort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+      return
+    }
+
+    setSortKey(key)
+    setSortDir('asc')
+  }
   const SortIcon = ({ k }: { k: SortKey }) => sortKey === k ? (sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />) : <ChevronsUpDown size={11} className="opacity-30" />
-  const toggleSelect = (id: string) => { const s = new Set(selected); s.has(id) ? s.delete(id) : s.add(id); setSelected(s) }
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+
+      return next
+    })
+  }
   const allSelected = paged.length > 0 && paged.every(a => selected.has(a.id))
 
   const onlineCount = assets.filter(a => a.status === 'online').length

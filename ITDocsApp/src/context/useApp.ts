@@ -9,6 +9,7 @@ import type { OrgMembership } from '../api/types'
 export interface AppContextValue {
   orgs: OrgMembership[]; currentOrg: OrgMembership | undefined
   switchOrg: (id: string) => void; addOrg: (o: Omit<Organization, 'id'>) => Promise<void>
+  updateOrg: (id: string, o: Omit<Organization, 'id'>) => Promise<void>
   assets: Asset[]; passwords: PasswordEntry[]; subnets: Subnet[]; licenses: License[]
   contacts: Contact[]; contracts: Contract[]; plans: Plan[]; incidents: Incident[]
   knowledgeArticles: KnowledgeArticle[]; tasks: Task[]

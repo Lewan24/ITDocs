@@ -241,12 +241,8 @@ interface AddNodeModalProps {
 
 function AddNodeModal({ onClose, onAdd, initialType = 'server' }: AddNodeModalProps) {
   const [deviceType, setDeviceType] = useState<DiagramDeviceType>(initialType)
-  const [label, setLabel] = useState(DEVICE_LABELS[initialType])
+  const [label, setLabel] = useState('')
   const [ip, setIp] = useState('')
-
-  useEffect(() => {
-    setLabel(DEVICE_LABELS[deviceType])
-  }, [deviceType])
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -267,7 +263,10 @@ function AddNodeModal({ onClose, onAdd, initialType = 'server' }: AddNodeModalPr
             {DEVICE_TYPES.map(t => (
               <button
                 key={t}
-                onClick={() => setDeviceType(t)}
+                onClick={() => {
+                  setDeviceType(t)
+                  setLabel(DEVICE_LABELS[t])
+                }}
                 style={{
                   background: deviceType === t ? `${DEVICE_COLORS[t]}22` : '#131920',
                   border: deviceType === t ? `1.5px solid ${DEVICE_COLORS[t]}` : '1.5px solid #1e2a3a',
@@ -475,13 +474,9 @@ function EditNodeModal({ node, onClose, onSave }: EditNodeModalProps) {
   const [deviceType, setDeviceType] = useState<DiagramDeviceType>((node.data.deviceType as DiagramDeviceType) ?? 'custom')
   const [label, setLabel] = useState((node.data.label as string) ?? '')
   const [ip, setIp] = useState((node.data.ip as string) ?? '')
-  const [color, setColor] = useState((node.data.color as string) ?? DEVICE_COLORS[deviceType])
-
-  useEffect(() => {
-    if (!(node.data.color as string)) {
-      setColor(DEVICE_COLORS[deviceType])
-    }
-  }, [deviceType, node.data.color])
+  const [color, setColor] = useState(
+    () => (node.data.color as string) ?? DEVICE_COLORS[deviceType]
+  )
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -502,7 +497,13 @@ function EditNodeModal({ node, onClose, onSave }: EditNodeModalProps) {
             {DEVICE_TYPES.map(t => (
               <button
                 key={t}
-                onClick={() => setDeviceType(t)}
+                onClick={() => {
+                  setDeviceType(t)
+
+                  if (!node.data.color) {
+                    setColor(DEVICE_COLORS[t])
+                  }
+                }}
                 style={{
                   background: deviceType === t ? `${DEVICE_COLORS[t]}22` : '#131920',
                   border: deviceType === t ? `1.5px solid ${DEVICE_COLORS[t]}` : '1.5px solid #1e2a3a',

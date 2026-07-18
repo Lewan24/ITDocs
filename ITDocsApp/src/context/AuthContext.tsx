@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { createContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { authApi, type UserDto } from '../api/auth'
 import { setUnauthorizedHandler } from '../api/http'
 import type { OrganizationSummary } from '../api/types'
@@ -10,19 +10,17 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
   logout: () => void
+  updateProfile: (displayName: string) => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserDto | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() =>
+    Boolean(localStorage.getItem('auth_token'))
+  )
 
   const logout = useCallback(() => {
     localStorage.removeItem('auth_token')
@@ -39,10 +37,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // rather than trusting it blindly (it may have expired since last visit).
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
+
     if (!token) {
-      setIsLoading(false)
       return
     }
+
     authApi.me()
       .then(setUser)
       .catch(() => localStorage.removeItem('auth_token'))
@@ -61,8 +60,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user)
   }, [])
 
+  const updateProfile = useCallback(async (displayName: string) => {
+    await authApi.updateProfile(displayName)
+    setUser(u => u ? { ...u, displayName } : u)
+  }, [])
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await authApi.changePassword(currentPassword, newPassword)
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, register, logout, updateProfile, changePassword }}>
       {children}
     </AuthContext.Provider>
   )
@@ -70,4 +78,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 // Re-exported for AppProvider's org list, since organizations now come
 // from GET /api/organizations rather than the login response.
+export { AuthContext }
 export type { OrganizationSummary }

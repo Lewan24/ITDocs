@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using ITDocsApi.Api;
 using ITDocsApi.Application;
@@ -11,14 +10,12 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── DbContext ──
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
-// ── AutoMapper ──
 builder.Services.AddAutoMapper(cfg => cfg.AddProfile<AppMappingProfile>());
 
-// ── App services ──
+builder.Services.AddScoped<AppInitializer>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IPasswordCipher, DataProtectionPasswordCipher>();
 builder.Services.AddDataProtection(); // required by the cipher above
@@ -28,13 +25,13 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICurrentUserIdProvider, HttpCurrentUserIdProvider>();
 builder.Services.AddScoped<ICurrentUserContext, DbCurrentUserContext>();
 
-// ── Auth ──
+builder.Services.Configure<AppSettings>(
+    builder.Configuration.GetSection("AppSettings"));
+
 var jwt = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
     {
-        // Stops ASP.NET from rewriting "sub" -> ClaimTypes.NameIdentifier, "email" -> ClaimTypes.Email, etc.
-        // Claims on HttpContext.User now match exactly what you put in the token.
         opt.MapInboundClaims = false;
 
         opt.TokenValidationParameters = new TokenValidationParameters
@@ -50,17 +47,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
-// ── CORS (adjust origin to your React dev server / prod domain) ──
+var appSettings =
+    builder.Configuration
+        .GetSection("AppSettings")
+        .Get<AppSettings>();
+
+if (appSettings?.AllowOrigins is null || appSettings.AllowOrigins.Length == 0)
+{
+    throw new InvalidOperationException(
+        "No CORS origins configured.");
+}
+
 builder.Services.AddCors(opt =>
 {
     opt.AddPolicy("Frontend", p => p
-        .WithOrigins("http://localhost:8443", "https://localhost:7121", "http://localhost:5006")
+        .WithOrigins(appSettings.AllowOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials());
 });
 
-// ── Controllers / Swagger ──
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -70,11 +76,10 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// ── Auto-migrate on startup (dev convenience — use real migration pipeline in prod) ──
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    var initializer = scope.ServiceProvider.GetRequiredService<AppInitializer>();
+    await initializer.InitializeAsync();
 }
 
 if (app.Environment.IsDevelopment())

@@ -208,23 +208,26 @@ function PasswordDetail({ selected, onBack, onEdit, onDelete }: {
   onDelete: () => void
 }) {
   const { toggleStarPassword, revealPassword } = useApp()
-  const [revealedValue, setRevealedValue] = useState<string | null>(null)
+  const [revealed, setRevealed] = useState<{
+    id: string
+    value: string
+  } | null>(null)
   const [revealing, setRevealing] = useState(false)
   const [copied, setCopied] = useState<'user' | 'pass' | null>(null)
 
-  // Fresh entry selected — drop any previously revealed secret from state
-  // rather than letting a stale password linger for the wrong row.
-  useEffect(() => { setRevealedValue(null) }, [selected.id])
-
   const ensureRevealed = async (): Promise<string | null> => {
-    if (revealedValue !== null) 
-      return revealedValue
+    if (revealed?.id === selected.id)
+      return revealed.value
 
     setRevealing(true)
 
     try {
       const value = await revealPassword(selected.id)
-      setRevealedValue(value)
+
+      setRevealed({
+        id: selected.id,
+        value
+      })
 
       return value
     } 
@@ -238,8 +241,10 @@ function PasswordDetail({ selected, onBack, onEdit, onDelete }: {
   }
 
   const toggleReveal = async () => {
-    if (revealedValue !== null) 
-      { setRevealedValue(null); return }
+    if (revealed?.id === selected.id) {
+      setRevealed(null)
+      return
+    }
 
     await ensureRevealed()
   }
@@ -310,11 +315,11 @@ function PasswordDetail({ selected, onBack, onEdit, onDelete }: {
           <label className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">Password</label>
           <div className="flex items-center gap-2 mt-1.5">
             <div className="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-navy-700 border border-edge-default font-mono text-xs sm:text-sm text-ink-primary tracking-widest truncate">
-              {revealing ? <Loader2 size={13} className="animate-spin text-ink-muted" /> : revealedValue !== null ? revealedValue : '•'.repeat(16)}
+              {revealing ? <Loader2 size={13} className="animate-spin text-ink-muted" /> : revealed?.id === selected.id ? revealed.value : '•'.repeat(16)}
             </div>
-            <button onClick={toggleReveal} disabled={revealing} title={revealedValue !== null ? 'Hide' : 'Reveal'}
-              className={`p-2.5 rounded-lg border flex-shrink-0 transition-all disabled:opacity-50 ${revealedValue !== null ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-navy-700 border-edge-default text-ink-muted hover:text-ink-primary'}`}>
-              {revealedValue !== null ? <EyeOff size={13} /> : <Eye size={13} />}
+            <button onClick={toggleReveal} disabled={revealing} title={revealed?.id === selected.id ? 'Hide' : 'Reveal'}
+              className={`p-2.5 rounded-lg border flex-shrink-0 transition-all disabled:opacity-50 ${revealed?.id === selected.id ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-navy-700 border-edge-default text-ink-muted hover:text-ink-primary'}`}>
+              {revealed?.id === selected.id ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
             <button onClick={copyPassword} disabled={revealing} title="Copy password"
               className={`p-2.5 rounded-lg border flex-shrink-0 transition-all disabled:opacity-50 ${copied === 'pass' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-navy-700 border-edge-default text-ink-muted hover:text-blue-400 hover:border-blue-500/30'}`}>
@@ -377,16 +382,16 @@ export default function PasswordVault() {
   const [deleteTarget, setDeleteTarget] = useState<PasswordEntry | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    if (!selectedId && passwords.length > 0) setSelectedId(passwords[0].id)
-  }, [passwords, selectedId])
-
   const filtered = passwords.filter(p =>
     (category === 'All' || p.category === category) &&
     (p.name.toLowerCase().includes(query.toLowerCase()) || p.username.toLowerCase().includes(query.toLowerCase()) || p.category.toLowerCase().includes(query.toLowerCase()) || p.tags.some(t => t.includes(query.toLowerCase())))
   )
 
-  const selected = passwords.find(p => p.id === selectedId) ?? filtered[0] ?? null
+  const selected =
+  passwords.find(p => p.id === selectedId)
+  ?? filtered[0]
+  ?? passwords[0]
+  ?? null
 
   const selectEntry = (id: string) => {
     setSelectedId(id)

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import type { View } from '../App'
 import { useApp } from '../context/useApp'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import type { Organization } from '../api/types'
 import { toggleTheme, getTheme } from '../lib/theme'
 import { buildSearchResults, type SearchResult } from '../lib/search'
@@ -59,7 +59,7 @@ const NAV_SECTIONS: NavSection[] = [
 
 interface Props {
   currentView: View
-  navigate: (v: View) => void
+  navigate: (v: View, targetId?: string) => void
   onLogout: () => void
   children: React.ReactNode
 }
@@ -368,16 +368,13 @@ export default function Layout({ currentView, navigate, onLogout, children }: Pr
     return () => window.removeEventListener('keydown', handler)
   }, [searchOpen])
 
-  // Focus the input and reset state each time the overlay opens
-  useEffect(() => {
-    if (searchOpen) {
-      setSearchQuery('')
-      setActiveIndex(0)
-      setTimeout(() => searchInputRef.current?.focus(), 0)
-    }
-  }, [searchOpen])
+  const openSearch = () => {
+    setSearchQuery('')
+    setActiveIndex(0)
+    setSearchOpen(true)
 
-  useEffect(() => { setActiveIndex(0) }, [searchQuery])
+    setTimeout(() => searchInputRef.current?.focus(), 0)
+  }
 
   const openResult = (r: SearchResult) => {
     navigate(r.view, r.targetId)
@@ -394,7 +391,12 @@ export default function Layout({ currentView, navigate, onLogout, children }: Pr
       setActiveIndex(i => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      openResult(results[activeIndex])
+
+      const result = results[activeIndex]
+
+      if (result) {
+        openResult(result)
+      }
     }
   }
 
@@ -448,7 +450,7 @@ export default function Layout({ currentView, navigate, onLogout, children }: Pr
           )}
 
           {/* Search */}
-          <button onClick={() => setSearchOpen(true)}
+          <button onClick={openSearch}
             className="flex items-center gap-2 flex-1 min-w-0 max-w-sm px-3 py-1.5 rounded-lg bg-navy-700 border border-edge-default hover:border-edge-strong text-ink-muted transition-colors">
             <Search size={13} className="flex-shrink-0" />
             <span className="text-xs truncate hidden sm:block">Search assets, docs…</span>
@@ -517,7 +519,10 @@ export default function Layout({ currentView, navigate, onLogout, children }: Pr
               <input
                 ref={searchInputRef}
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => {
+                  setSearchQuery(e.target.value)
+                  setActiveIndex(0)
+                }}
                 onKeyDown={handleSearchKeyDown}
                 className="flex-1 bg-transparent text-ink-primary text-sm placeholder:text-ink-muted outline-none"
                 placeholder="Search assets, documents, passwords…"

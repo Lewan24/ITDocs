@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Plus, Search, X, Edit2, Trash2, Star, ArrowLeft,
   Calendar, DollarSign, Building2, FileText, RefreshCw,
@@ -258,15 +258,13 @@ export default function Contracts() {
   const { contracts, isLoading, addContract, updateContract, deleteContract, toggleStarContract } = useApp()
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'All'>('All')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => contracts[0]?.id ?? null
+  )
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; initial?: Contract }>({ open: false })
   const [catOpen, setCatOpen] = useState(false)
   const [catFilter, setCatFilter] = useState<ContractCategory | 'All'>('All')
-
-  useEffect(() => {
-    if (!selectedId && contracts.length > 0) setSelectedId(contracts[0].id)
-  }, [contracts, selectedId])
 
   const filtered = contracts.filter(c =>
     (statusFilter === 'All' || c.status === statusFilter) &&
@@ -275,7 +273,8 @@ export default function Contracts() {
      c.vendor.toLowerCase().includes(query.toLowerCase()))
   )
 
-  const selected = contracts.find(c => c.id === selectedId) ?? null
+  const activeSelectedId = selectedId ?? contracts[0]?.id ?? null
+  const selected = contracts.find(c => c.id === activeSelectedId) ?? null
 
   const totalValue = contracts.reduce((s, c) => s + c.value, 0)
   const active = contracts.filter(c => c.status === 'active').length
@@ -293,7 +292,7 @@ export default function Contracts() {
 
   const handleDelete = async (id: string) => {
     await deleteContract(id)
-    if (selectedId === id) setSelectedId(filtered.find(c => c.id !== id)?.id ?? null)
+    if (activeSelectedId === id) setSelectedId(filtered.find(c => c.id !== id)?.id ?? null)
     setMobileDetailOpen(false)
   }
 
@@ -395,7 +394,7 @@ export default function Contracts() {
                   return (
                     <tr key={c.id}
                       onClick={() => { setSelectedId(c.id); setMobileDetailOpen(true) }}
-                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${selectedId === c.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
+                      className={`cursor-pointer hover:bg-navy-700/50 transition-colors ${activeSelectedId === c.id ? 'bg-navy-700/70 border-l-2 border-l-blue-500' : ''}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-start gap-2">
                           {c.starred && <Star size={10} className="text-yellow-400 fill-yellow-400 mt-0.5 flex-shrink-0" />}
