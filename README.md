@@ -258,7 +258,7 @@ Because ITDocs is fully self-hosted, protecting your data is your responsibility
 
 It is highly recommended to perform regular automated backups of your database.
 
-For this purpose, you can use **OctoBackup**, another free and self-hosted project available on my GitHub and Docker Hub.
+For this purpose, you can use [**OctoBackup**](https://github.com/Lewan24/OctoBackup), another free and self-hosted project available on my GitHub and Docker Hub.
 
 OctoBackup provides:
 
