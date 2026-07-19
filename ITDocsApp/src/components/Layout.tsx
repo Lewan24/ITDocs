@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Shield, LayoutDashboard, Server, KeyRound, BookOpen,
+  Blocks, LayoutDashboard, Server, KeyRound, BookOpen,
   Network, CreditCard, Settings, ChevronLeft, ChevronRight,
   Search, Bell, LogOut, ChevronDown, X, Plus, Check, Building2, Menu,
   Users, FileSignature, Lightbulb, AlertTriangle, CheckSquare,
@@ -161,7 +161,7 @@ function Sidebar({
       <div className="flex flex-col h-full bg-navy-900">
         <div className="h-14 flex items-center px-4 border-b border-edge-subtle flex-shrink-0">
           <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-            <Shield size={14} className="text-white" />
+            <Blocks size={14} className="text-white" />
           </div>
           {(!collapsed || isMobile) && <span className="ml-2.5 font-semibold text-ink-primary text-sm">ITDocs</span>}
         </div>
@@ -179,7 +179,7 @@ function Sidebar({
           </button>
         )}
         <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0" style={{ boxShadow: '0 0 16px rgba(37,99,235,0.4)' }}>
-          <Shield size={14} className="text-white" />
+          <Blocks size={14} className="text-white" />
         </div>
         {(!collapsed || isMobile) && (
           <span className="ml-2.5 font-semibold text-ink-primary text-sm tracking-tight whitespace-nowrap">ITDocs</span>
