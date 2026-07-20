@@ -29,7 +29,6 @@ public static class JsonValueConverters
         v => v.ToList());
 }
 
-// Apply this to any property builder for a List<string> JSON column
 public static class PropertyBuilderExtensions
 {
     public static void HasJsonStringList(this Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<List<string>> builder)
@@ -45,14 +44,10 @@ public static class PropertyBuilderExtensions
     }
 }
 
-// ─── Current-org accessor (resolved from auth context, e.g. JWT claim) ────
-
 public interface ICurrentOrgAccessor
 {
     Guid? OrganizationId { get; }
 }
-
-// ─── DbContext ──────────────────────────────────────────────────────────────
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserIdProvider currentUser) : DbContext(options)
 {
@@ -79,7 +74,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
     {
         base.OnModelCreating(b);
 
-        // ── Organization ──
         b.Entity<Organization>(e =>
         {
             e.Property(o => o.Name).HasMaxLength(200).IsRequired();
@@ -87,7 +81,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
             e.Property(o => o.Initials).HasMaxLength(8);
         });
 
-        // ── Asset ──
         b.Entity<Asset>(e =>
         {
             e.Property(a => a.Name).HasMaxLength(200).IsRequired();
@@ -95,14 +88,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
             e.HasIndex(a => new { a.OrganizationId, a.Name });
         });
 
-        // ── PasswordEntry ──
         b.Entity<PasswordEntry>(e =>
         {
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
             e.Property(p => p.Tags).HasJsonStringList();
         });
 
-        // ── Subnet / IPEntry ──
         b.Entity<Subnet>(e =>
         {
             e.Property(s => s.Name).HasMaxLength(200).IsRequired();
@@ -116,65 +107,55 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
             e.Property(ip => ip.Ip).HasMaxLength(45).IsRequired();
         });
 
-        // ── License ──
         b.Entity<License>(e =>
         {
             e.Property(l => l.Name).HasMaxLength(200).IsRequired();
             e.Property(l => l.Cost).HasColumnType("decimal(18,2)");
         });
 
-        // ── Contact ──
         b.Entity<Contact>(e =>
         {
             e.Property(c => c.Tags).HasJsonStringList();
         });
 
-        // ── Contract ──
         b.Entity<Contract>(e =>
         {
             e.Property(c => c.Value).HasColumnType("decimal(18,2)");
         });
 
-        // ── Plan ──
         b.Entity<Plan>(e =>
         {
             e.Property(p => p.Tags).HasJsonStringList();
         });
 
-        // ── Incident ──
         b.Entity<Incident>(e =>
         {
             e.Property(i => i.Tags).HasJsonStringList();
             e.Property(i => i.AffectedSystems).HasJsonStringList();
         });
 
-        // ── KnowledgeArticle ──
         b.Entity<KnowledgeArticle>(e =>
         {
             e.Property(a => a.Tags).HasJsonStringList();
         });
 
-        // ── WorkTask ──
         b.Entity<WorkTask>(e =>
         {
             e.Property(t => t.Tags).HasJsonStringList();
         });
 
-        // ── Group ──
         b.Entity<Group>(e =>
         {
             e.Property(g => g.Tags).HasJsonStringList();
             e.Property(g => g.Members).HasJsonStringList();
-            e.Property(g => g.LinkedAssets).HasJsonGuidList(); // see earlier note: consider a join table instead
+            e.Property(g => g.LinkedAssets).HasJsonGuidList();
         });
 
-        // ── WarrantyItem ──
         b.Entity<WarrantyItem>(e =>
         {
             e.Property(w => w.Name).HasMaxLength(200).IsRequired();
         });
 
-        // ── DiagramNode / DiagramEdge ──
         b.Entity<DiagramNode>(e =>
         {
             e.Property(n => n.Label).HasMaxLength(200);
@@ -188,7 +169,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
             e.HasOne<DiagramNode>()
              .WithMany()
              .HasForeignKey(edge => edge.TargetNodeId)
-             .OnDelete(DeleteBehavior.Restrict); // avoid multiple cascade paths
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         b.Entity<User>(e =>
@@ -207,14 +188,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
         
         b.Entity<Organization>().HasQueryFilter(o => !o.IsDeleted);
         
-        // ── Global tenant-isolation filter for every BaseEntity ──
         ApplyOrganizationQueryFilters(b);
         ApplyUtcDateTimeConversion(b);
     }
-
-// Postgres' timestamptz requires Kind=Utc on write. Rather than hunting down
-// every place a DateTime might end up Unspecified (default values, parsed
-// input, etc.), coerce every DateTime/DateTime? column through this converter.
+    
     private void ApplyUtcDateTimeConversion(ModelBuilder b)
     {
         var utcConverter = new ValueConverter<DateTime, DateTime>(
@@ -260,8 +237,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
         }
     }
 
-    // Every BaseEntity row is only visible if the current user has a UserOrganization
-    // row for that entity's OrganizationId. No membership => entity effectively doesn't exist.
     private LambdaExpression BuildOrgFilter<TEntity>() where TEntity : BaseEntity
     {
         Expression<Func<TEntity, bool>> filter = e =>

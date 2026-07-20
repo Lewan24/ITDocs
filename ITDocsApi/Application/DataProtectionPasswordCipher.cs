@@ -1,4 +1,5 @@
 using ITDocsApi.Api;
+using ITDocsApi.Api.Interfaces;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace ITDocsApi.Application;

@@ -17,10 +17,9 @@ public class AppMappingProfile : Profile
         CreateMap<CreateAssetDto, Asset>();
         CreateMap<UpdateAssetDto, Asset>();
 
-        // Password: entity -> list DTO only (never map the encrypted bytes out)
         CreateMap<PasswordEntry, PasswordListDto>();
         CreateMap<CreatePasswordDto, PasswordEntry>()
-            .ForMember(d => d.EncryptedPassword, o => o.Ignore()); // set explicitly in controller
+            .ForMember(d => d.EncryptedPassword, o => o.Ignore());
         CreateMap<UpdatePasswordDto, PasswordEntry>()
             .ForMember(d => d.EncryptedPassword, o => o.Ignore());
 
@@ -125,7 +124,6 @@ public class AppMappingProfile : Profile
                 TargetNodeId = s.Target,
                 Label = s.Label,
                 ConnectionType = s.ConnectionType,
-                // OrganizationId is set explicitly by the controller after mapping — leave default here
             });
     }
 }

@@ -1,4 +1,5 @@
 using ITDocsApi.Api;
+using ITDocsApi.Api.Interfaces;
 
 namespace ITDocsApi.Application;
 
@@ -13,7 +14,7 @@ public class LocalFileStorage(IWebHostEnvironment env, IConfiguration config) : 
         var fullPath = Path.Combine(_root, safeName);
         await using var fs = File.Create(fullPath);
         await content.CopyToAsync(fs);
-        return safeName; // store only the relative name/path in the DB
+        return safeName;
     }
 
     public Task<Stream> OpenAsync(string path) => Task.FromResult<Stream>(File.OpenRead(Path.Combine(_root, path)));

@@ -6,7 +6,7 @@ public class Pbkdf2PasswordHasher : IPasswordHasher
 {
     private const int SaltSize = 16;
     private const int HashSize = 32;
-    private const int Iterations = 210_000; // OWASP 2023+ recommendation for PBKDF2-SHA256
+    private const int Iterations = 210_000;
 
     public (byte[] Hash, byte[] Salt) Hash(string password)
     {

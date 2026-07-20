@@ -1,14 +1,14 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using ITDocsApi.Application;
 using ITDocsApi.Domain;
 using ITDocsApi.Domain.Dtos;
 using ITDocsApi.Domain.Entities;
 using ITDocsApi.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-namespace ITDocsApi.Api;
+namespace ITDocsApi.Api.Auth;
 
 [ApiController]
 [Route("api/auth")]
@@ -48,7 +48,6 @@ public class AuthController(
         return Ok(await BuildAuthResponse(user, requestedOrgId: null));
     }
 
-    // ── Login ──
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponseDto>> Login(LoginDto dto)
     {
@@ -61,7 +60,6 @@ public class AuthController(
         return Ok(await BuildAuthResponse(user, dto.OrganizationId));
     }
 
-    // ── Switch org (reissue a token scoped to a different org the user belongs to) ──
     [HttpPost("switch-org")]
     [Authorize]
     public async Task<ActionResult<AuthResponseDto>> SwitchOrg(SwitchOrgDto dto)
@@ -73,7 +71,6 @@ public class AuthController(
         return Ok(await BuildAuthResponse(user, dto.OrganizationId));
     }
 
-    // ── Current user info ──
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<UserDto>> Me()
@@ -83,7 +80,6 @@ public class AuthController(
         return user is null ? NotFound() : Ok(new UserDto(user.Id, user.Email, user.DisplayName));
     }
 
-    // ── Update profile (display name only — keep this endpoint narrow) ──
     [HttpPut("me")]
     [Authorize]
     public async Task<IActionResult> UpdateProfile(UpdateProfileDto dto)
@@ -100,7 +96,6 @@ public class AuthController(
         return NoContent();
     }
 
-    // ── Change password ──
     [HttpPost("change-password")]
     [Authorize]
     public async Task<IActionResult> ChangePassword(ChangePasswordDto dto)
@@ -122,8 +117,6 @@ public class AuthController(
         return NoContent();
     }
 
-    // ── Helpers ──
-
     private Guid CurrentUserId() =>
         Guid.Parse(User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)!.Value);
 
@@ -133,9 +126,7 @@ public class AuthController(
             .Include(uo => uo.Organization)
             .Where(uo => uo.UserId == user.Id)
             .ToListAsync();
-
-        // Auto-provision a personal org on first login/register if the user has none yet,
-        // so the app always has somewhere to write data. Remove this if orgs must be created explicitly.
+        
         if (memberships.Count == 0)
         {
             var org = new Organization

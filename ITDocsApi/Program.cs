@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using ITDocsApi.Api;
+using ITDocsApi.Api.Interfaces;
 using ITDocsApi.Application;
 using ITDocsApi.Domain;
 using ITDocsApi.Infrastructure;
