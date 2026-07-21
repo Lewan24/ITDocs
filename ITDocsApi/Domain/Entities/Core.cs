@@ -10,7 +10,7 @@ public class Asset : BaseEntity
     public string Ip { get; set; } = "";
     public DateTime UpdatedAt { get; set; }
     public bool Starred { get; set; }
-    public List<string> Tags { get; set; } = []; // JSON column, see §3
+    public List<string> Tags { get; set; } = [];
     public string Notes { get; set; } = "";
     public string? Serial { get; set; }
 }
@@ -19,7 +19,7 @@ public class PasswordEntry : BaseEntity
 {
     public string Name { get; set; } = "";
     public string Username { get; set; } = "";
-    public byte[] EncryptedPassword { get; set; } = []; // NEVER store plaintext, see §5
+    public byte[] EncryptedPassword { get; set; } = [];
     public string Category { get; set; } = "";
     public List<string> Tags { get; set; } = [];
     public DateTime UpdatedAt { get; set; }
@@ -65,10 +65,10 @@ public class License : BaseEntity
     public DateOnly ExpiryDate { get; set; }
     public decimal Cost { get; set; }
     public string Currency { get; set; } = "";
-    public string LicenseKey { get; set; } = ""; // consider encrypting too
+    public string LicenseKey { get; set; } = ""; // TODO: Add encryption here
     public string Notes { get; set; } = "";
     public bool Starred { get; set; }
-    public LicenseStatus Status { get; set; } // computed server-side on write
+    public LicenseStatus Status { get; set; }
 }
 
 public class Contact : BaseEntity
@@ -156,7 +156,7 @@ public class Group : BaseEntity
     public string Description { get; set; } = "";
     public string Purpose { get; set; } = "";
     public List<string> Members { get; set; } = [];
-    public List<Guid> LinkedAssets { get; set; } = []; // real FK list, see §3
+    public List<Guid> LinkedAssets { get; set; } = [];
     public List<string> Tags { get; set; } = [];
     public DateTime CreatedAt { get; set; }
 }
@@ -176,8 +176,6 @@ public class WarrantyItem : BaseEntity
     public Guid? AssetId { get; set; }
     public bool Starred { get; set; }
     public WarrantyStatus Status { get; set; }
-
-    // Document stored as a blob reference, not base64 in a column — see §5
     public string? DocumentName { get; set; }
     public string? DocumentMimeType { get; set; }
     public long? DocumentSize { get; set; }

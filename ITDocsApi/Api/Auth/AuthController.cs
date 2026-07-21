@@ -55,7 +55,7 @@ public class AuthController(
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
 
         if (user is null || !user.IsActive || !hasher.Verify(dto.Password, user.PasswordHash, user.PasswordSalt))
-            return Unauthorized("Invalid email or password."); // deliberately generic — don't reveal which part was wrong
+            return Unauthorized("Invalid email or password.");
 
         return Ok(await BuildAuthResponse(user, dto.OrganizationId));
     }

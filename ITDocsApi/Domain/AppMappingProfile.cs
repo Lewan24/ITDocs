@@ -5,6 +5,7 @@ namespace ITDocsApi.Domain;
 
 using AutoMapper;
 
+// TODO: Change AutoMapper to custom one or any free solution
 public class AppMappingProfile : Profile
 {
     public AppMappingProfile()
