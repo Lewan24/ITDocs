@@ -21,12 +21,13 @@ import NetworkDiagram from './components/NetworkDiagram'
 import Settings from './components/Settings'
 import ToastContainer from './components/ui/Toast'
 import { useAuth } from './context/useAuth'
+import AdminPanel from './components/AdminPanel'
 
 export type View =
   | 'dashboard' | 'assets' | 'asset-detail' | 'passwords'
   | 'networks' | 'licenses' | 'contacts' | 'contracts'
   | 'plans' | 'incidents' | 'knowledge' | 'tasks' | 'settings'
-  | 'groups' | 'warranty' | 'diagram'
+  | 'groups' | 'warranty' | 'diagram' | 'adminpanel'
 
 function AuthenticatedApp() {
   const { logout } = useAuth()
@@ -56,6 +57,7 @@ function AuthenticatedApp() {
       case 'warranty':     return <Warranty />
       case 'diagram':      return <NetworkDiagram />
       case 'settings':     return <Settings navigate={navigate} />
+      case 'adminpanel':   return <AdminPanel />
       default:             return null
     }
   })()

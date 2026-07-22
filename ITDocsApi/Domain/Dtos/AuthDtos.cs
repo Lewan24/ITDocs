@@ -6,7 +6,7 @@ public record LoginDto(string Email, string Password, Guid? OrganizationId);
 
 public record AuthResponseDto(string Token, DateTime ExpiresAt, UserDto User, List<OrganizationSummaryDto> Organizations);
 
-public record UserDto(Guid Id, string Email, string DisplayName);
+public record UserDto(Guid Id, string Email, string DisplayName, string SystemRole);
 
 public record OrganizationSummaryDto(Guid Id, string Name, string Role);
 

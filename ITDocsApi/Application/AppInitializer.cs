@@ -36,6 +36,7 @@ public sealed class AppInitializer(
             DisplayName = "Admin",
             PasswordHash = hash,
             PasswordSalt = salt,
+            SystemRole = SystemRole.Admin
         });
 
         await db.SaveChangesAsync();

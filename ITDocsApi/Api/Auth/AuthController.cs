@@ -57,6 +57,9 @@ public class AuthController(
         if (user is null || !user.IsActive || !hasher.Verify(dto.Password, user.PasswordHash, user.PasswordSalt))
             return Unauthorized("Invalid email or password.");
 
+        if (user.IsBlocked)
+            return Unauthorized("This account has been disabled. Contact your administrator.");
+        
         return Ok(await BuildAuthResponse(user, dto.OrganizationId));
     }
 
@@ -77,7 +80,7 @@ public class AuthController(
     {
         var userId = CurrentUserId();
         var user = await db.Users.FindAsync(userId);
-        return user is null ? NotFound() : Ok(new UserDto(user.Id, user.Email, user.DisplayName));
+        return user is null ? NotFound() : Ok(new UserDto(user.Id, user.Email, user.DisplayName, user.SystemRole.ToString()));
     }
 
     [HttpPut("me")]
@@ -153,12 +156,12 @@ public class AuthController(
             throw new InvalidOperationException("User does not belong to the requested organization.");
 
         var expiresAt = DateTime.UtcNow.AddHours(8);
-        var token = jwt.CreateToken(user.Id, user.Email);
+        var token = jwt.CreateToken(user.Id, user.Email, user.SystemRole);
 
         return new AuthResponseDto(
             token,
             expiresAt,
-            new UserDto(user.Id, user.Email, user.DisplayName),
+            new UserDto(user.Id, user.Email, user.DisplayName, user.SystemRole.ToString()),
             memberships.Select(m => new OrganizationSummaryDto(m.OrganizationId, m.Organization.Name, m.Role.ToString())).ToList());
     }
 }

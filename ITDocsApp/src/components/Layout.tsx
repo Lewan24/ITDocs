@@ -54,7 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'knowledge', label: 'Knowledge Base', icon: <BookOpen size={15} /> },
       { id: 'contacts',  label: 'Contacts',       icon: <Users size={15} /> },
     ],
-  },
+  }
 ]
 
 interface Props {
@@ -252,6 +252,15 @@ function Sidebar({
           <Settings size={16} className="flex-shrink-0 text-ink-muted group-hover:text-ink-secondary" />
           {(!collapsed || isMobile) && <span>Settings</span>}
         </button>
+        
+        {(user?.systemRole === 'Admin') && (
+        <button onClick={() => handleNav('adminpanel')}
+          title={collapsed && !isMobile ? 'Admin Panel' : undefined}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-md text-sm transition-all text-left text-ink-secondary hover:text-ink-primary hover:bg-navy-700 group ${currentView === 'settings' ? 'bg-blue-500/10 text-blue-300' : ''}`}
+          style={{ width: collapsed && !isMobile ? 36 : 'calc(100% - 12px)' }}>
+          <Settings size={16} className="flex-shrink-0 text-ink-muted group-hover:text-ink-secondary" />
+          {(!collapsed || isMobile) && <span>Admin Panel</span>}
+        </button>)}
       </nav>
 
       {/* User footer */}

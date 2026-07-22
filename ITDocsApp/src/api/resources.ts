@@ -5,7 +5,17 @@ import type {
   DiagramNode, DiagramEdge, Organization, OrganizationSummary,
   OrgMember,
   OrgRole,
+  AdminUser,
+  SystemRole,
 } from './types'
+
+export const adminApi = {
+  getUsers: () => http.get<AdminUser[]>('/admin/users'),
+  createUser: (email: string, displayName: string, password: string, systemRole: SystemRole) => http.post<AdminUser>('/admin/users', {email, displayName, password, systemRole}),
+  setBlocked: (id: string, blocked: boolean) => http.patch<void>(`/admin/users/${id}/block${qs({ blocked: blocked ? 'true' : 'false' })}`),
+  setRole: (id: string, systemRole: SystemRole) => http.patch<void>(`/admin/users/${id}/role`, { systemRole }),
+  resetPassword: (id: string, newPassword: string) => http.post<void>(`/admin/users/${id}/reset-password`, { newPassword }),
+}
 
 export const organizationsApi = {
   getAll: () => http.get<OrganizationSummary[]>('/organizations'),

@@ -4,6 +4,7 @@ using ITDocsApi.Api;
 using ITDocsApi.Api.Interfaces;
 using ITDocsApi.Application;
 using ITDocsApi.Domain;
+using ITDocsApi.Domain.Entities;
 using ITDocsApi.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -46,7 +47,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["SigningKey"]!))
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireClaim("sys_role", nameof(SystemRole.Admin)));
+});
 
 var appSettings =
     builder.Configuration

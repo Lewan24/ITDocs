@@ -1,5 +1,7 @@
 namespace ITDocsApi.Domain.Entities;
 
+public enum SystemRole { User, Admin }
+
 public class User
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -9,6 +11,8 @@ public class User
     public byte[] PasswordSalt { get; set; } = [];
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
+    public bool IsBlocked { get; set; }
+    public SystemRole SystemRole { get; set; } = SystemRole.User;
 
     public List<UserOrganization> Memberships { get; set; } = [];
 }

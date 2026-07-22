@@ -19,6 +19,9 @@ export type WarrantyStatus = 'active' | 'expiring' | 'expired'
 export type DiagramDeviceType = 'server' | 'firewall' | 'switch' | 'router' | 'workstation' | 'ap' | 'storage' | 'cloud' | 'internet' | 'printer' | 'custom'
 export type DiagramConnectionType = 'ethernet' | 'fiber' | 'wireless' | 'vpn' | 'wan'
 export type OrgRole = 'ReadOnly' | 'Member' | 'Admin' | 'Owner'
+export type SystemRole = 'User' | 'Admin'
+
+export interface AdminUser { id: string; email: string; displayName: string; systemRole: SystemRole; isBlocked: boolean; createdAt: string }
 
 export interface Organization { id: string; name: string; color: string; initials: string; description: string }
 export interface OrganizationSummary { id: string; name: string; role: OrgRole }

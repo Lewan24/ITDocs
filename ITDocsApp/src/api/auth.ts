@@ -1,7 +1,7 @@
 import { http } from './http'
 import type { OrganizationSummary } from './types'
 
-export interface UserDto { id: string; email: string; displayName: string }
+export interface UserDto { id: string; email: string; displayName: string; systemRole: string }
 export interface AuthResponse {
   token: string
   expiresAt: string
