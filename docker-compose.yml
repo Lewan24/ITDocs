@@ -4,7 +4,7 @@ services:
   db:
     image: postgres:17
 
-    profiles:
+    profiles: # remove if you want to import it to like portainer and run everything
       - database
 
     container_name: postgres
@@ -26,7 +26,7 @@ services:
   adminer:
     image: adminer
 
-    profiles:
+    profiles: # remove if you want to import it to like portainer and run everything
       - database
 
     container_name: adminer
@@ -41,9 +41,6 @@ services:
 
   api:
     image: lewan24/itdocs-api:latest
-    build:
-      context: ./ITDocsApi
-      
     container_name: itdocsapi
 
     restart: unless-stopped
@@ -77,9 +74,6 @@ services:
 
   frontend:
     image: lewan24/itdocs-web:latest
-    build:
-      context: ./ITDocsApp
-      
     container_name: itdocsweb
 
     restart: unless-stopped
