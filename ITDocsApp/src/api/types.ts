@@ -79,9 +79,12 @@ export interface KnowledgeArticle {
   tags: string[]; updatedAt: string; starred: boolean
 }
 
+export interface Project { id: string; name: string; description: string; color: string; createdAt: string; taskCount: number }
+
 export interface Task {
   id: string; title: string; description: string; priority: Priority
   status: TaskStatus; assignee: string; dueDate: string; tags: string[]; createdAt: string
+  projectId?: string
 }
 
 export interface Group {

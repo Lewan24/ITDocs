@@ -64,6 +64,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<Incident> Incidents => Set<Incident>();
     public DbSet<KnowledgeArticle> KnowledgeArticles => Set<KnowledgeArticle>();
+    public DbSet<Project> Projects => Set<Project>();
     public DbSet<WorkTask> Tasks => Set<WorkTask>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<WarrantyItem> WarrantyItems => Set<WarrantyItem>();
@@ -139,9 +140,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
             e.Property(a => a.Tags).HasJsonStringList();
         });
 
+        b.Entity<Project>(e =>
+        {
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+        });
+        
         b.Entity<WorkTask>(e =>
         {
             e.Property(t => t.Tags).HasJsonStringList();
+            e.HasOne(t => t.Project)
+                .WithMany(p => p.Tasks)
+                .HasForeignKey(t => t.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<Group>(e =>

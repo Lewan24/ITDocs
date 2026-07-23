@@ -14,7 +14,7 @@ namespace ITDocsApi.Api.App;
 public class TasksController(AppDbContext db, IMapper mapper, ICurrentUserContext userContext) : OrgScopedController(db, userContext)
 {
     [HttpGet]
-    public async Task<ActionResult<List<WorkTaskDto>>> GetAll([FromQuery] Guid? organizationId)
+    public async Task<ActionResult<List<WorkTaskDto>>> GetAll([FromQuery] Guid? organizationId, [FromQuery] Guid? projectId)
     {
         if (organizationId is { } orgId)
         {
@@ -24,6 +24,7 @@ public class TasksController(AppDbContext db, IMapper mapper, ICurrentUserContex
 
         var query = Db.Tasks.AsQueryable();
         if (organizationId is { } id) query = query.Where(t => t.OrganizationId == id);
+        if (projectId is { } pid) query = query.Where(t => t.ProjectId == pid);
 
         return Ok(await query.ProjectTo<WorkTaskDto>(mapper.ConfigurationProvider).ToListAsync());
     }

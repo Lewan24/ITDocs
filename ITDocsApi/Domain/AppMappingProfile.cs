@@ -76,6 +76,13 @@ public class AppMappingProfile : Profile
         CreateMap<CreateKnowledgeArticleDto, KnowledgeArticle>();
         CreateMap<UpdateKnowledgeArticleDto, KnowledgeArticle>();
 
+        CreateMap<Project, ProjectDto>()
+            .ForCtorParam(nameof(ProjectDto.TaskCount),
+                opt => opt.MapFrom(src => src.Tasks.Count));
+
+        CreateMap<CreateProjectDto, Project>();
+        CreateMap<UpdateProjectDto, Project>();
+        
         CreateMap<WorkTask, WorkTaskDto>();
         CreateMap<CreateWorkTaskDto, WorkTask>();
         CreateMap<UpdateWorkTaskDto, WorkTask>();

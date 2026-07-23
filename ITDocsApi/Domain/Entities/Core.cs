@@ -147,6 +147,9 @@ public class WorkTask : BaseEntity
     public DateOnly DueDate { get; set; }
     public List<string> Tags { get; set; } = [];
     public DateTime CreatedAt { get; set; }
+    
+    public Guid? ProjectId { get; set; }
+    public Project? Project { get; set; }
 }
 
 public class Group : BaseEntity

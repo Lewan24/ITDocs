@@ -5,6 +5,7 @@ import type {
   DiagramNode, DiagramEdge, Toast,
   OrgMember,
   OrgRole,
+  Project,
 } from '../api/types'
 import type { OrgMembership } from '../api/types'
 
@@ -18,7 +19,7 @@ export interface AppContextValue {
   restoreOrg: (orgId: string) => Promise<void>
   assets: Asset[]; passwords: PasswordEntry[]; subnets: Subnet[]; licenses: License[]
   contacts: Contact[]; contracts: Contract[]; plans: Plan[]; incidents: Incident[]
-  knowledgeArticles: KnowledgeArticle[]; tasks: Task[]
+  knowledgeArticles: KnowledgeArticle[]; projects: Project[]; tasks: Task[]
   groups: Group[]; warrantyItems: WarrantyItem[]; diagramNodes: DiagramNode[]; diagramEdges: DiagramEdge[]
   isLoading: boolean
   toasts: Toast[]; dismissToast: (id: string) => void; toast: (message: string, type?: Toast['type']) => void
@@ -68,6 +69,10 @@ export interface AppContextValue {
   updateKnowledge: (a: KnowledgeArticle) => Promise<void>
   deleteKnowledge: (id: string) => Promise<void>
   toggleStarKnowledge: (id: string) => Promise<void>
+
+  addProject: (p: Omit<Project, 'id' | 'createdAt' | 'taskCount'>) => Promise<Project>
+  updateProject: (p: Project) => Promise<void>
+  deleteProject: (id: string) => Promise<void>
 
   addTask: (t: Omit<Task, 'id' | 'createdAt'>) => Promise<void>
   updateTask: (t: Task) => Promise<void>

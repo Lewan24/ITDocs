@@ -7,6 +7,7 @@ import type {
   OrgRole,
   AdminUser,
   SystemRole,
+  Project,
 } from './types'
 
 export const adminApi = {
@@ -114,6 +115,14 @@ export const knowledgeApi = {
   update: (id: string, data: Omit<KnowledgeArticle, 'id' | 'updatedAt'>) => http.put<void>(`/knowledge/${id}`, data),
   delete: (id: string) => http.delete<void>(`/knowledge/${id}`),
   toggleStar: (id: string) => http.patch<{ starred: boolean }>(`/knowledge/${id}/star`),
+}
+
+export const projectsApi = {
+  getAll: (organizationId: string) => http.get<Project[]>(`/projects${qs({ organizationId })}`),
+  create: (organizationId: string, data: Omit<Project, 'id' | 'createdAt' | 'taskCount'>) =>
+    http.post<Project>(`/projects${qs({ organizationId })}`, data),
+  update: (id: string, data: Omit<Project, 'id' | 'createdAt' | 'taskCount'>) => http.put<void>(`/projects/${id}`, data),
+  delete: (id: string) => http.delete<void>(`/projects/${id}`),
 }
 
 export const tasksApi = {

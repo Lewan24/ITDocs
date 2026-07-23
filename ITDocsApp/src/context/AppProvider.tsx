@@ -7,11 +7,13 @@ import type {
   DiagramNode, DiagramEdge, Toast,
   OrgMembership,
   OrgRole,
+  Project,
 } from '../api/types'
 import {
   organizationsApi, assetsApi, passwordsApi, subnetsApi, licensesApi,
   contactsApi, contractsApi, plansApi, incidentsApi, knowledgeApi,
   tasksApi, groupsApi, warrantyApi, diagramApi,
+  projectsApi,
 } from '../api/resources'
 import { ApiError } from '../api/http'
 
@@ -20,7 +22,7 @@ function emptyOrgState() {
     assets: [] as Asset[], passwords: [] as PasswordEntry[], subnets: [] as Subnet[],
     licenses: [] as License[], contacts: [] as Contact[], contracts: [] as Contract[],
     plans: [] as Plan[], incidents: [] as Incident[], knowledgeArticles: [] as KnowledgeArticle[],
-    tasks: [] as Task[], groups: [] as Group[], warrantyItems: [] as WarrantyItem[],
+    tasks: [] as Task[], projects: [] as Project[], groups: [] as Group[], warrantyItems: [] as WarrantyItem[],
     diagramNodes: [] as DiagramNode[], diagramEdges: [] as DiagramEdge[],
   }
 }
@@ -104,15 +106,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       assetsApi.getAll(currentOrgId), passwordsApi.getAll(currentOrgId), subnetsApi.getAll(currentOrgId),
       licensesApi.getAll(currentOrgId), contactsApi.getAll(currentOrgId), contractsApi.getAll(currentOrgId),
       plansApi.getAll(currentOrgId), incidentsApi.getAll(currentOrgId), knowledgeApi.getAll(currentOrgId),
-      tasksApi.getAll(currentOrgId), groupsApi.getAll(currentOrgId), warrantyApi.getAll(currentOrgId),
+      tasksApi.getAll(currentOrgId), projectsApi.getAll(currentOrgId), groupsApi.getAll(currentOrgId), warrantyApi.getAll(currentOrgId),
       diagramApi.get(currentOrgId),
     ]).then(([
       assets, passwords, subnets, licenses, contacts, contracts,
-      plans, incidents, knowledgeArticles, tasks, groups, warrantyItems, diagram,
+      plans, incidents, knowledgeArticles, tasks, projects, groups, warrantyItems, diagram,
     ]) => {
       setData({
         assets, passwords, subnets, licenses, contacts, contracts,
-        plans, incidents, knowledgeArticles, tasks, groups, warrantyItems,
+        plans, incidents, knowledgeArticles, tasks, projects, groups, warrantyItems,
         diagramNodes: diagram.nodes, diagramEdges: diagram.edges,
       })
     }).catch(() => toast('Failed to load organization data', 'error'))
@@ -402,6 +404,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setData(d => ({ ...d, knowledgeArticles: d.knowledgeArticles.map(a => a.id === id ? { ...a, starred } : a) }))
   }, [guarded])
 
+  // Projects
+
+  const addProject = useCallback(async (p: Omit<Project, 'id' | 'createdAt' | 'taskCount'>) => {
+  const created = await guarded(() => projectsApi.create(currentOrgId, p), 'Failed to add project')
+    setData(d => ({ ...d, projects: [created, ...d.projects] }))
+    toast(`Project "${p.name}" created`)
+    return created
+  }, [currentOrgId, guarded, toast])
+
+  const updateProject = useCallback(async (p: Project) => {
+    await guarded(() => projectsApi.update(p.id, p), 'Failed to update project')
+    setData(d => ({ ...d, projects: d.projects.map(x => x.id === p.id ? p : x) }))
+    toast(`Project "${p.name}" updated`)
+  }, [guarded, toast])
+
+  const deleteProject = useCallback(async (id: string) => {
+    const name = data.projects.find(p => p.id === id)?.name
+    await guarded(() => projectsApi.delete(id), 'Failed to delete project')
+    setData(d => ({
+      ...d,
+      projects: d.projects.filter(p => p.id !== id),
+      tasks: d.tasks.map(t => t.projectId === id ? { ...t, projectId: undefined } : t), // matches SetNull server-side
+    }))
+    toast(`Project "${name}" deleted`, 'info')
+  }, [data.projects, guarded, toast])
+
   // ── Tasks ──
   const addTask = useCallback(async (t: Omit<Task, 'id' | 'createdAt'>) => {
     const created = await guarded(() => tasksApi.create(currentOrgId, t), 'Failed to add task')
@@ -483,7 +511,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     orgs, currentOrg, switchOrg, addOrg, updateOrg,inviteMember, removeMember, deleteOrg, restoreOrg,
     assets: data.assets, passwords: data.passwords, subnets: data.subnets, licenses: data.licenses,
     contacts: data.contacts, contracts: data.contracts, plans: data.plans, incidents: data.incidents,
-    knowledgeArticles: data.knowledgeArticles, tasks: data.tasks,
+    knowledgeArticles: data.knowledgeArticles, tasks: data.tasks, projects: data.projects,
     groups: data.groups, warrantyItems: data.warrantyItems, diagramNodes: data.diagramNodes, diagramEdges: data.diagramEdges,
     isLoading,
     toasts, dismissToast, toast,
@@ -497,6 +525,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addIncident, updateIncident, deleteIncident,
     addKnowledge, updateKnowledge, deleteKnowledge, toggleStarKnowledge,
     addTask, updateTask, deleteTask,
+    addProject, updateProject, deleteProject,
     addGroup, updateGroup, deleteGroup,
     addWarranty, updateWarranty, deleteWarranty, toggleStarWarranty, uploadWarrantyDocument,
     saveDiagram,

@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus, X, Edit2, Trash2, Calendar,
   User, CheckSquare, ChevronRight, ChevronLeft, Loader2,
+  FolderKanban, ChevronDown, Check, Layers,
 } from 'lucide-react'
 import { useApp } from '../context/useApp'
-import type { Task, Priority, TaskStatus } from '../api/types'
+import type { Task, Priority, TaskStatus, Project } from '../api/types'
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low']
 const STATUSES: TaskStatus[] = ['todo', 'in-progress', 'done']
@@ -21,6 +22,9 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; col: string }> = {
   'done':        { label: 'Done',        col: 'border-green-500/30' },
 }
 
+const PROJECT_COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706', '#0891b2', '#be185d', '#374151']
+const NO_PROJECT = '__none__' // sentinel for the "No Project" bucket in the UI only — never sent to the API
+
 function isOverdue(dueDate: string) {
   if (!dueDate) return false
   return new Date(dueDate) < new Date()
@@ -29,10 +33,108 @@ function isOverdue(dueDate: string) {
 const inp = (err?: string) =>
   `w-full px-3 py-2 rounded-lg bg-navy-700 border text-ink-primary text-xs placeholder:text-ink-muted focus:outline-none transition-colors disabled:opacity-50 ${err ? 'border-red-500/50 focus:border-red-500' : 'border-edge-default focus:border-blue-500'}`
 
+// ─── Project Modal ──────────────────────────────────────────────────────────
+
+function ProjectModal({ initial, onClose, onSave, onDelete }: {
+  initial?: Project
+  onClose: () => void
+  onSave: (p: Omit<Project, 'id' | 'createdAt' | 'taskCount'>) => Promise<void>
+  onDelete?: () => Promise<void>
+}) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [description, setDescription] = useState(initial?.description ?? '')
+  const [color, setColor] = useState(initial?.color! ?? PROJECT_COLORS[0])
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const submit = async () => {
+    if (!name.trim()) { setError('Name is required'); return }
+    setSubmitting(true)
+    try {
+      await onSave({ name: name.trim(), description, color })
+      onClose()
+    } catch {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete()
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const busy = submitting || deleting
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-navy-800 border border-edge-strong rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" style={{ animation: 'modalIn 0.18s ease-out' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-edge-subtle">
+          <h2 className="text-sm font-semibold text-ink-primary">{initial ? 'Edit Project' : 'New Project'}</h2>
+          <button onClick={() => !busy && onClose()} disabled={busy} className="p-1 rounded-md text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors disabled:opacity-40"><X size={14} /></button>
+        </div>
+        <div className="px-5 py-4 space-y-3.5">
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Name *</label>
+            <input value={name} onChange={e => { setName(e.target.value); setError('') }} placeholder="e.g. Network Overhaul Q3" className={inp(error)} autoFocus disabled={busy} />
+            {error && <p className="text-[10px] text-red-400 mt-1">{error}</p>}
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="Optional" className={inp() + ' resize-none'} disabled={busy} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-2">Color</label>
+            <div className="flex gap-2 flex-wrap">
+              {PROJECT_COLORS.map(c => (
+                <button key={c} onClick={() => !busy && setColor(c)} className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
+                  style={{ backgroundColor: c, borderColor: color === c ? '#fff' : 'transparent' }}>
+                  {color === c && <Check size={10} className="text-white" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-5 py-4 border-t border-edge-subtle bg-navy-900/40">
+          {initial && onDelete ? (
+            confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-ink-muted">Delete project? Tasks stay, unassigned.</span>
+                <button onClick={handleDelete} disabled={deleting} className="text-[11px] text-red-400 hover:text-red-300 font-medium disabled:opacity-50">Yes</button>
+                <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="text-[11px] text-ink-muted disabled:opacity-50">No</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)} disabled={busy} className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-red-400 transition-colors disabled:opacity-40">
+                <Trash2 size={12} /> Delete
+              </button>
+            )
+          ) : <div />}
+          <div className="flex gap-2">
+            <button onClick={() => !busy && onClose()} disabled={busy} className="px-3.5 py-1.5 rounded-lg bg-navy-700 hover:bg-navy-600 text-ink-secondary text-xs border border-edge-default transition-colors disabled:opacity-40">Cancel</button>
+            <button onClick={submit} disabled={busy} className="px-3.5 py-1.5 rounded-lg text-white text-xs font-medium transition-all active:scale-95 disabled:opacity-60 flex items-center gap-1.5" style={{ backgroundColor: color }}>
+              {submitting && <Loader2 size={11} className="animate-spin" />}
+              {submitting ? 'Saving…' : initial ? 'Save Changes' : 'Create Project'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Task Modal ───────────────────────────────────────────────────────────────
 
-function TaskModal({ initial, onClose, onSave, onDelete }: {
+function TaskModal({ initial, projects, defaultProjectId, onClose, onSave, onDelete }: {
   initial?: Task
+  projects: Project[]
+  defaultProjectId?: string
   onClose: () => void
   onSave: (t: Omit<Task, 'id' | 'createdAt'>) => Promise<void>
   onDelete?: () => Promise<void>
@@ -45,16 +147,14 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
     assignee: initial?.assignee ?? '',
     dueDate: initial?.dueDate ?? '',
     tags: initial?.tags.join(', ') ?? '',
+    projectId: initial?.projectId ?? defaultProjectId ?? '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const set = (k: string, v: string) => {
-    setForm(f => ({ ...f, [k]: v }))
-    setErrors(e => ({ ...e, [k]: '' }))
-  }
+  const set = (k: string, v: string) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })) }
 
   const submit = async () => {
     const e: Record<string, string> = {}
@@ -66,11 +166,12 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
       await onSave({
         title: form.title.trim(),
         description: form.description.trim(),
-        priority: form.priority as Priority,
-        status: form.status as TaskStatus,
+        priority: form.priority,
+        status: form.status,
         assignee: form.assignee.trim(),
         dueDate: form.dueDate,
         tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        projectId: form.projectId || undefined,
       })
     } catch {
       setSubmitting(false)
@@ -106,6 +207,13 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Title *</label>
             <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Replace firewall firmware" className={inp(errors.title)} autoFocus disabled={busy} />
             {errors.title && <p className="text-[10px] text-red-400 mt-1">{errors.title}</p>}
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Project</label>
+            <select value={form.projectId} onChange={e => set('projectId', e.target.value)} className={inp()} disabled={busy}>
+              <option value="">No Project</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-ink-secondary mb-1.5">Description</label>
@@ -146,9 +254,7 @@ function TaskModal({ initial, onClose, onSave, onDelete }: {
             confirmDelete ? (
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-ink-muted">Delete this task?</span>
-                <button onClick={handleDelete} disabled={deleting} className="text-[11px] text-red-400 hover:text-red-300 font-medium disabled:opacity-50 flex items-center gap-1">
-                  {deleting && <Loader2 size={10} className="animate-spin" />} Yes
-                </button>
+                <button onClick={handleDelete} disabled={deleting} className="text-[11px] text-red-400 hover:text-red-300 font-medium disabled:opacity-50">Yes</button>
                 <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="text-[11px] text-ink-muted disabled:opacity-50">No</button>
               </div>
             ) : (
@@ -216,7 +322,6 @@ function TaskCard({ task, onEdit, onMove }: {
           ))}
         </div>
       )}
-      {/* Status move buttons */}
       <div className="flex items-center gap-1 mt-2.5 pt-2 border-t border-edge-subtle">
         <button
           onClick={() => onMove('prev')}
@@ -236,16 +341,90 @@ function TaskCard({ task, onEdit, onMove }: {
   )
 }
 
+// ─── Project Switcher ───────────────────────────────────────────────────────
+
+function ProjectSwitcher({ projects, activeId, onSelect, onNew, onEdit }: {
+  projects: Project[]
+  activeId: string // NO_PROJECT sentinel or a real project id, or 'all'
+  onSelect: (id: string) => void
+  onNew: () => void
+  onEdit: (p: Project) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const active = projects.find(p => p.id === activeId)
+  const label = activeId === 'all' ? 'All Tasks' : activeId === NO_PROJECT ? 'No Project' : active?.name ?? 'All Tasks'
+  const color = active?.color
+
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-navy-800 border border-edge-default text-xs text-ink-secondary hover:text-ink-primary hover:border-edge-strong transition-colors">
+        {color ? <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} /> : <Layers size={13} className="text-ink-muted" />}
+        <span className="font-medium">{label}</span>
+        <ChevronDown size={12} className={`text-ink-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 w-64 bg-navy-750 border border-edge-default rounded-xl shadow-2xl z-40 overflow-hidden">
+            <button onClick={() => { onSelect('all'); setOpen(false) }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs hover:bg-navy-700 transition-colors ${activeId === 'all' ? 'text-blue-400' : 'text-ink-secondary'}`}>
+              <Layers size={13} className="flex-shrink-0" /> All Tasks
+              {activeId === 'all' && <Check size={11} className="ml-auto flex-shrink-0" />}
+            </button>
+            <button onClick={() => { onSelect(NO_PROJECT); setOpen(false) }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs hover:bg-navy-700 transition-colors border-t border-edge-subtle ${activeId === NO_PROJECT ? 'text-blue-400' : 'text-ink-secondary'}`}>
+              <span className="w-2.5 h-2.5 rounded-full border border-edge-strong flex-shrink-0" /> No Project
+              {activeId === NO_PROJECT && <Check size={11} className="ml-auto flex-shrink-0" />}
+            </button>
+            {projects.length > 0 && <div className="border-t border-edge-subtle" />}
+            {projects.map(p => (
+              <div key={p.id} className={`flex items-center hover:bg-navy-700 transition-colors ${activeId === p.id ? 'text-blue-400' : 'text-ink-secondary'}`}>
+                <button onClick={() => { onSelect(p.id); setOpen(false) }} className="flex-1 flex items-center gap-2.5 px-3 py-2.5 text-left text-xs min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+                  <span className="truncate">{p.name}</span>
+                  <span className="text-[10px] text-ink-muted flex-shrink-0">{p.taskCount}</span>
+                  {activeId === p.id && <Check size={11} className="ml-auto flex-shrink-0" />}
+                </button>
+                <button onClick={() => { onEdit(p); setOpen(false) }} className="p-2 text-ink-muted hover:text-ink-primary flex-shrink-0"><Edit2 size={11} /></button>
+              </div>
+            ))}
+            <div className="border-t border-edge-subtle">
+              <button onClick={() => { onNew(); setOpen(false) }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-ink-muted hover:text-ink-primary hover:bg-navy-700 transition-colors">
+                <Plus size={12} /> New Project
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export default function Tasks() {
-  const { tasks, isLoading, addTask, updateTask, deleteTask } = useApp()
+  const { tasks, projects, isLoading, addTask, updateTask, deleteTask, addProject, updateProject, deleteProject } = useApp()
   const [modal, setModal] = useState<{ open: boolean; initial?: Task }>({ open: false })
+  const [projectModal, setProjectModal] = useState<{ open: boolean; initial?: Project } | null>(null)
   const [mobileStatus, setMobileStatus] = useState<TaskStatus>('todo')
+  const [activeProjectId, setActiveProjectId] = useState<string>('all')
 
-  const byStatus = (s: TaskStatus) => tasks.filter(t => t.status === s)
+  useEffect(() => {
+    if (activeProjectId === 'all' && projects.length > 0) {
+    }
+  }, [projects, activeProjectId])
 
-  const handleSave = async (data: Omit<Task, 'id' | 'createdAt'>) => {
+  const filteredTasks = tasks.filter(t => {
+    if (activeProjectId === 'all') return true
+    if (activeProjectId === NO_PROJECT) return !t.projectId
+    return t.projectId === activeProjectId
+  })
+
+  const byStatus = (s: TaskStatus) => filteredTasks.filter(t => t.status === s)
+
+  const handleSaveTask = async (data: Omit<Task, 'id' | 'createdAt'>) => {
     if (modal.initial) {
       await updateTask({ ...modal.initial, ...data })
     } else {
@@ -254,7 +433,7 @@ export default function Tasks() {
     setModal({ open: false })
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteTask = async (id: string) => {
     await deleteTask(id)
     setModal({ open: false })
   }
@@ -264,6 +443,21 @@ export default function Tasks() {
     const nextIdx = dir === 'next' ? idx + 1 : idx - 1
     if (nextIdx < 0 || nextIdx >= STATUSES.length) return
     updateTask({ ...task, status: STATUSES[nextIdx]! })
+  }
+
+  const handleSaveProject = async (data: Omit<Project, 'id' | 'createdAt' | 'taskCount'>) => {
+    if (projectModal?.initial) {
+      await updateProject({ ...projectModal.initial, ...data })
+    } else {
+      const created = await addProject(data)
+      setActiveProjectId(created.id) // jump straight into the new project
+    }
+  }
+
+  const handleDeleteProject = async (id: string) => {
+    await deleteProject(id)
+    if (activeProjectId === id) setActiveProjectId('all')
+    setProjectModal(null)
   }
 
   const colHeader = (s: TaskStatus) => {
@@ -291,19 +485,32 @@ export default function Tasks() {
     )
   }
 
+  const defaultProjectId = activeProjectId !== 'all' && activeProjectId !== NO_PROJECT ? activeProjectId : undefined
+
   return (
     <div className="p-6 max-w-[1200px]">
       {/* Header */}
-      <div className="flex items-start justify-between mb-5 gap-4">
+      <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-ink-primary">Tasks</h1>
-          <p className="text-xs text-ink-muted mt-0.5">{tasks.length} tasks · {byStatus('in-progress').length} in progress</p>
+          <h1 className="text-xl font-semibold text-ink-primary flex items-center gap-2"><FolderKanban size={18} className="text-blue-400" /> Tasks</h1>
+          <p className="text-xs text-ink-muted mt-0.5">{filteredTasks.length} tasks · {byStatus('in-progress').length} in progress</p>
         </div>
         <button onClick={() => setModal({ open: true })}
           className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 active:scale-95 text-white text-sm font-medium transition-all flex-shrink-0"
           style={{ boxShadow: '0 1px 12px rgba(37,99,235,0.3)' }}>
           <Plus size={14} /> Add Task
         </button>
+      </div>
+
+      {/* Project switcher */}
+      <div className="mb-5">
+        <ProjectSwitcher
+          projects={projects}
+          activeId={activeProjectId}
+          onSelect={setActiveProjectId}
+          onNew={() => setProjectModal({ open: true })}
+          onEdit={p => setProjectModal({ open: true, initial: p })}
+        />
       </div>
 
       {/* Mobile status tabs */}
@@ -330,12 +537,7 @@ export default function Tasks() {
             ) : (
               <div className="space-y-2">
                 {byStatus(s).map(task => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onEdit={() => setModal({ open: true, initial: task })}
-                    onMove={dir => moveTask(task, dir)}
-                  />
+                  <TaskCard key={task.id} task={task} onEdit={() => setModal({ open: true, initial: task })} onMove={dir => moveTask(task, dir)} />
                 ))}
               </div>
             )}
@@ -355,12 +557,7 @@ export default function Tasks() {
           ) : (
             <div className="space-y-2">
               {byStatus(mobileStatus).map(task => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onEdit={() => setModal({ open: true, initial: task })}
-                  onMove={dir => moveTask(task, dir)}
-                />
+                <TaskCard key={task.id} task={task} onEdit={() => setModal({ open: true, initial: task })} onMove={dir => moveTask(task, dir)} />
               ))}
             </div>
           )}
@@ -370,9 +567,20 @@ export default function Tasks() {
       {modal.open && (
         <TaskModal
           initial={modal.initial}
+          projects={projects}
+          defaultProjectId={defaultProjectId}
           onClose={() => setModal({ open: false })}
-          onSave={handleSave}
-          onDelete={modal.initial ? () => handleDelete(modal.initial!.id) : undefined}
+          onSave={handleSaveTask}
+          onDelete={modal.initial ? () => handleDeleteTask(modal.initial!.id) : undefined}
+        />
+      )}
+
+      {projectModal?.open && (
+        <ProjectModal
+          initial={projectModal.initial}
+          onClose={() => setProjectModal(null)}
+          onSave={handleSaveProject}
+          onDelete={projectModal.initial ? () => handleDeleteProject(projectModal.initial!.id) : undefined}
         />
       )}
     </div>
