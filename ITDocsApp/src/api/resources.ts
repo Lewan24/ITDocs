@@ -8,6 +8,7 @@ import type {
   AdminUser,
   SystemRole,
   Project,
+  DashboardLayout,
 } from './types'
 
 export const adminApi = {
@@ -16,6 +17,13 @@ export const adminApi = {
   setBlocked: (id: string, blocked: boolean) => http.patch<void>(`/admin/users/${id}/block${qs({ blocked: blocked ? 'true' : 'false' })}`),
   setRole: (id: string, systemRole: SystemRole) => http.patch<void>(`/admin/users/${id}/role`, { systemRole }),
   resetPassword: (id: string, newPassword: string) => http.post<void>(`/admin/users/${id}/reset-password`, { newPassword }),
+}
+
+export const dashboardApi = {
+  get: (organizationId: string) => http.get<DashboardLayout | null>(`/dashboard-layout${qs({ organizationId })}`),
+  save: (organizationId: string, layout: DashboardLayout) =>
+    http.put<void>(`/dashboard-layout${qs({ organizationId })}`, layout),
+  reset: (organizationId: string) => http.delete<void>(`/dashboard-layout${qs({ organizationId })}`),
 }
 
 export const organizationsApi = {

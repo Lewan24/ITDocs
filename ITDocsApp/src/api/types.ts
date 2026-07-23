@@ -28,6 +28,8 @@ export interface OrganizationSummary { id: string; name: string; role: OrgRole }
 export interface OrgMembership extends Organization { role: OrgRole }
 export interface OrgMember { userId: string; email: string; displayName: string; role: OrgRole }
 
+export interface DashboardLayout { sectionOrder: string[]; hiddenSections: string[] }
+
 export interface Asset {
   id: string; name: string; type: AssetType; status: AssetStatus; location: string
   owner: string; ip: string; updated: string; starred: boolean; tags: string[]; notes: string; serial?: string

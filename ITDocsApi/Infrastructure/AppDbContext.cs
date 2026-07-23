@@ -51,6 +51,7 @@ public interface ICurrentOrgAccessor
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserIdProvider currentUser) : DbContext(options)
 {
+    public DbSet<DashboardLayout> DashboardLayouts => Set<DashboardLayout>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserOrganization> UserOrganizations => Set<UserOrganization>();
     public DbSet<Organization> Organizations => Set<Organization>();
@@ -75,6 +76,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserId
     {
         base.OnModelCreating(b);
 
+        b.Entity<DashboardLayout>(e =>
+        {
+            e.HasIndex(d => new { d.UserId, d.OrganizationId }).IsUnique();
+            e.Property(d => d.SectionOrder).HasJsonStringList();
+            e.Property(d => d.HiddenSections).HasJsonStringList();
+        });
+        
         b.Entity<Organization>(e =>
         {
             e.Property(o => o.Name).HasMaxLength(200).IsRequired();

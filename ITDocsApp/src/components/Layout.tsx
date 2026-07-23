@@ -129,8 +129,6 @@ function OrgModal({ onClose, onAdd }: { onClose: () => void; onAdd: (o: Omit<Org
   )
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
 function Sidebar({
   currentView, navigate, onLogout, collapsed, onToggleCollapse, isMobile, onClose,
 }: {
@@ -154,8 +152,6 @@ function Sidebar({
     onClose?.()
   }
 
-  // No org yet (e.g. still loading right after login, before the
-  // auto-provisioned default org has been fetched) — render a lightweight shell.
   if (!currentOrg) {
     return (
       <div className="flex flex-col h-full bg-navy-900">
@@ -163,7 +159,7 @@ function Sidebar({
           <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
             <Blocks size={14} className="text-white" />
           </div>
-          {(!collapsed || isMobile) && <span className="ml-2.5 font-semibold text-ink-primary text-sm">ITDocs</span>}
+          {(!collapsed || isMobile) && <span className="ml-2.5 font-semibold text-ink-primary text-sm">DocsIT</span>}
         </div>
       </div>
     )
@@ -182,7 +178,7 @@ function Sidebar({
           <Blocks size={14} className="text-white" />
         </div>
         {(!collapsed || isMobile) && (
-          <span className="ml-2.5 font-semibold text-ink-primary text-sm tracking-tight whitespace-nowrap">ITDocs</span>
+          <span className="ml-2.5 font-semibold text-ink-primary text-sm tracking-tight whitespace-nowrap">DocsIT</span>
         )}
       </div>
 
