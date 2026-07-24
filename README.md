@@ -1,25 +1,25 @@
-# ITDocs
+# HexoraIT
 
-ITDocs is a modern, self-hosted IT documentation platform designed for system administrators, IT departments, managed service providers, and anyone responsible for maintaining technical infrastructure.
+HexoraIT is a modern, self-hosted IT documentation platform designed for system administrators, IT departments, managed service providers, and anyone responsible for maintaining technical infrastructure.
 
-The project was created to provide a free, powerful alternative to commercial documentation systems without requiring subscriptions or vendor lock-in. Every organization can host ITDocs within its own environment, keeping complete ownership of its data, infrastructure, backups, and security.
+The project was created to provide a free, powerful alternative to commercial documentation systems without requiring subscriptions or vendor lock-in. Every organization can host HexoraIT within its own environment, keeping complete ownership of its data, infrastructure, backups, and security.
 
-Built with modern technologies, ITDocs focuses on performance, simplicity, and a clean technical user experience while offering advanced documentation capabilities for complex IT environments.
+Built with modern technologies, HexoraIT focuses on performance, simplicity, and a clean technical user experience while offering advanced documentation capabilities for complex IT environments.
 
 ---
 
-![ITDocs App Login gif](https://github.com/Lewan24/ITDocs/blob/main/Images/Login.gif)
+![HexoraIT App Login gif](https://github.com/Lewan24/HexoraIT/blob/main/Images/Login.gif)
 
-## Checkout [example images](https://github.com/Lewan24/ITDocs/blob/main/presentation.md) of working application and few first pages.
+## Checkout [example images](https://github.com/Lewan24/HexoraIT/blob/main/presentation.md) of working application and few first pages.
 
 ---
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/Lewan24/ITDocs.git
+git clone https://github.com/Lewan24/HexoraIT.git
 
-cd ITDocs
+cd HexoraIT
 
 docker compose --profile database up -d
 ```
@@ -31,11 +31,11 @@ Open:
 - API: http://localhost:8081
 - Adminer: http://localhost:8082
 
-## Check out [Installation Guide](https://github.com/Lewan24/ITDocs/blob/main/installation.md) to know better all settings and what you can do before start.
+## Check out [Installation Guide](https://github.com/Lewan24/HexoraIT/blob/main/installation.md) to know better all settings and what you can do before start.
 
 ## Features
 
-ITDocs allows you to organize and connect every important part of your infrastructure in a single place.
+**HexoraIT** allows you to organize and connect every important part of your infrastructure in a single place.
 
 ### Asset Management
 
@@ -77,7 +77,7 @@ Store technical and business contacts, including employees, vendors, customers, 
 
 ### Contracts
 
-Keep important contract information together with related assets, contacts, and expiration dates.
+Keep important contract information together with related assets, contacts, expiration dates and provided documents.
 
 ---
 
@@ -150,7 +150,7 @@ Track warranty periods for hardware and receive a complete overview of equipment
 
 ### Interactive Network Diagram
 
-One of the core features of ITDocs is the integrated network diagram editor.
+One of the core features of HexoraIT is the integrated network diagram editor.
 
 Create visual representations of your infrastructure by connecting assets directly within the diagram.
 
@@ -171,13 +171,14 @@ The diagram integrates directly with your existing assets, allowing your documen
 
 ## Modern User Interface
 
-ITDocs provides a clean and professional interface designed specifically for technical users.
+**HexoraIT** provides a clean and professional interface designed specifically for technical users.
 
 Features include:
 
 - Dark theme
 - Light theme
 - Responsive layout
+- Customizable Dashboard per user per organization
 - Modern technical design
 - Fast navigation
 - Consistent user experience
@@ -209,7 +210,7 @@ The interface was designed to feel familiar to developers, system administrators
 
 ## Self-Hosted First
 
-ITDocs is built around a self-hosted philosophy.
+**HexoraIT** is built around a self-hosted philosophy.
 
 There are no subscriptions, licensing servers, cloud dependencies, or feature limitations.
 
@@ -221,7 +222,7 @@ You own:
 - Your security
 - Your updates
 
-Deploy ITDocs on your own server, NAS, virtual machine, or homelab in just a few minutes using Docker.
+Deploy **HexoraIT** on your own server, NAS, virtual machine, or homelab in just a few minutes using Docker.
 
 ---
 
@@ -240,7 +241,7 @@ The entire setup takes only a few minutes.
 
 ## Updating
 
-Updating ITDocs is simple.
+Updating HexoraIT is simple.
 
 1. Stop the running containers.
 2. Pull the latest images.
@@ -254,7 +255,7 @@ Regular database backups are strongly recommended.
 
 ## Database Backups
 
-Because ITDocs is fully self-hosted, protecting your data is your responsibility.
+Because **HexoraIT** is fully self-hosted, protecting your data is your responsibility.
 
 It is highly recommended to perform regular automated backups of your database.
 
@@ -269,13 +270,13 @@ OctoBackup provides:
 - Docker deployment
 - Self-hosted architecture
 
-Together, ITDocs and OctoBackup provide a complete, free solution for documenting and protecting your IT infrastructure.
+Together, **HexoraIT** and OctoBackup provide a complete, free solution for documenting and protecting your IT infrastructure.
 
 ---
 
 ## Philosophy
 
-ITDocs was built with a few simple principles:
+**HexoraIT** was built with a few simple principles:
 
 - Free forever
 - Self-hosted
@@ -286,7 +287,7 @@ ITDocs was built with a few simple principles:
 - No vendor lock-in
 - Complete ownership of your data
 
-Whether you're managing a small homelab, a growing company, or a large enterprise environment, ITDocs gives you a centralized place to organize your technical knowledge and infrastructure.
+Whether you're managing a small homelab, a growing company, or a large enterprise environment, **HexoraIT** gives you a centralized place to organize your technical knowledge and infrastructure.
 
 ---
 
