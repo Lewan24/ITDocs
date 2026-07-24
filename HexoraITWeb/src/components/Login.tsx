@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Moon, Sun } from 'lucide-react'
 import { useAuth } from '../context/useAuth'
 import { ApiError } from '../api/http'
-import logo from '../../public/logo/HexoraIT_LogoNoBg.png'
+import logo from '../../public/logo/HexoraIT_Logo.png'
+import logoDark from '../../public/logo/HexoraIT_LogoNoBg.png'
+import { getTheme, toggleTheme } from '../lib/theme'
 
 export default function Login() {
   const { login } = useAuth()
@@ -12,6 +14,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [focused, setFocused] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [theme, setThemeState] = useState(getTheme)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -33,20 +36,36 @@ export default function Login() {
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: 'radial-gradient(circle, var(--_edge-default, #252525) 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle, var(--_edge-default, #252525) 1px, transparent 3px)',
           backgroundSize: '28px 28px',
           opacity: 0.8,
         }}
       />
       {/* Subtle vignette */}
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, var(--_bg-950, #070707) 100%)' }} />
+      <div className="absolute inset-0" style={{ background: 'var(--_bg-white)' }} />
 
       <div className="relative z-10 w-full max-w-[380px] px-5">
+
+        <div className='flex flex-col items-center'>
+          <button
+            onClick={() => { const t = toggleTheme(); setThemeState(t) }}
+            className="size-12 rounded-lg flex items-center justify-center text-ink-secondary hover:text-ink-primary hover:bg-navy-700 transition-colors flex-shrink-0"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
+          </button>
+        </div>
 
         {/* Header */}
         <div className="mb-8">
           <div>
-            <img src={logo}/>
+            {(getTheme() === 'dark') && (
+              <img src={logoDark}/>
+            )}
+
+            {(getTheme() === 'light') && (
+              <img src={logo}/>
+            )}
           </div>
           <h1 className="text-xl font-semibold text-ink-primary leading-tight">
             Sign in to HexoraIT
@@ -107,12 +126,6 @@ export default function Login() {
             <p className="text-xs text-red-400 font-mono pt-0.5">{error}</p>
           )}
 
-          <div className="flex items-center justify-end pt-0.5">
-            <button type="button" className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-mono">
-              forgot_password()
-            </button>
-          </div>
-
           <button
             type="submit"
             disabled={loading}
@@ -130,8 +143,12 @@ export default function Login() {
           </button>
         </form>
 
+        <div className='text-center mt-5'>
+          <p className='text-xs'>If you need an <b>Account</b> or <b>forgot</b> the password <br/> Contact with the application <b>Administrator</b></p>
+        </div>
+
         {/* Footer */}
-        <div className="mt-8 pt-5 border-t border-edge-subtle flex items-center justify-between">
+        <div className="mt-1 pt-5 border-t border-edge-subtle flex items-center justify-between">
           <span className="text-[11px] font-mono text-ink-muted">v1.0.0 · self-hosted</span>
           <span className="text-[11px] font-mono text-ink-muted">corp.local</span>
         </div>

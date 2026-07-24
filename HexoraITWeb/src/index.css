@@ -2,7 +2,6 @@
 @import 'tailwindcss';
 
 :root {
-  /* Dark theme (default)*/
   --_bg-950: #070707;
   --_bg-900: #0d0d0d;
   --_bg-800: #161616;
@@ -28,6 +27,7 @@
 }
 
 html[data-theme="light"] {
+  --_bg-white: #fff;
   --_bg-950: #e8e8e8;
   --_bg-900: #f2f2f2;
   --_bg-800: #ffffff;
