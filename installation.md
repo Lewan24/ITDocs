@@ -1,6 +1,6 @@
 # Docker Compose
 
-The easiest way to run ITDocs is using Docker Compose.
+The easiest way to run **HexoraIT** is using Docker Compose.
 
 The provided `docker-compose.yml` starts:
 
@@ -61,13 +61,13 @@ Environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `ITDOCS_API_BASE_URL` | URL of the backend API (for example `http://localhost:8081/api`) |
+| `HEXORAIT_API_BASE_URL` | URL of the backend API (for example `http://localhost:8081/api`) |
 
 Example:
 
 ```yaml
 environment:
-  ITDOCS_API_BASE_URL: http://localhost:8081/api
+  HEXORAIT_API_BASE_URL: http://localhost:8081/api
 ```
 
 ---
@@ -91,9 +91,9 @@ Example:
 ```text
 Host=db;
 Port=5432;
-Database=ITDocsApp;
-Username=itdocs;
-Password=itdocs;
+Database=HexoraITApp;
+Username=HexoraIT;
+Password=HexoraIT;
 ```
 
 If you're using an external PostgreSQL server simply replace `Host=db` with your server address.
@@ -132,7 +132,7 @@ You can mount this directory as a Docker volume to persist uploaded files.
 
 | Variable | Description |
 |----------|-------------|
-| `AppSettings__ITDocsAdmin` | Initial administrator email |
+| `AppSettings__HexoraITAdmin` | Initial administrator email |
 | `AppSettings__AllowRegister` | Enable/disable public registration |
 | `AppSettings__AllowOrigins__0` | Allowed frontend origin (CORS) |
 | `AppSettings__AllowOrigins__1` | Additional allowed origin |
@@ -154,9 +154,9 @@ Default credentials:
 
 | Setting | Value |
 |---------|-------|
-| Database | `ITDocsApp` |
-| Username | `itdocs` |
-| Password | `itdocs` |
+| Database | `HexoraITApp` |
+| Username | `HexoraIT` |
+| Password | `HexoraIT` |
 | Port | `5432` |
 
 ---
@@ -172,9 +172,9 @@ http://localhost:8082
 Login using:
 
 - Server: `db`
-- Username: `itdocs`
-- Password: `itdocs`
-- Database: `ITDocsApp`
+- Username: `HexoraIT`
+- Password: `HexoraIT`
+- Database: `HexoraITApp`
 
 ---
 
@@ -217,7 +217,7 @@ I personally recommend **Nginx Proxy Manager** because it makes the setup very s
 - Configure HTTPS without manually editing Nginx configuration.
 - Easily manage multiple applications from a web interface.
 
-When exposing ITDocs to the Internet, it is also recommended to:
+When exposing **HexoraIT** to the Internet, it is also recommended to:
 
 - Disable public user registration:
   ```yaml
