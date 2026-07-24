@@ -1,5 +1,5 @@
-docker build -t lewan24/itdocs-api:latest ./ITDocsApi
-docker build -t lewan24/itdocs-web:latest ./ITDocsApp
+docker build -t lewan24/hexorait-api:latest ./HexoraITApi
+docker build -t lewan24/hexorait-web:latest ./HexoraITWeb
 
-docker push lewan24/itdocs-api:latest
-docker push lewan24/itdocs-web:latest
+docker push lewan24/hexorait-api:latest
+docker push lewan24/hexorait-web:latest
