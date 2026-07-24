@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import { Eye, EyeOff, Terminal } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/useAuth'
 import { ApiError } from '../api/http'
+import logo from '../../public/logo/HexoraIT_LogoNoBg.png'
 
 export default function Login() {
   const { login } = useAuth()
@@ -44,16 +45,13 @@ export default function Login() {
 
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 rounded-md bg-blue-500 flex items-center justify-center flex-shrink-0">
-              <Terminal size={15} className="text-white" />
-            </div>
-            <span className="font-mono text-ink-primary font-medium tracking-tight text-lg">
-              ITDocs
-              <span className="cursor-blink ml-0.5 text-blue-400">_</span>
-            </span>
+          <div>
+            <img src={logo}/>
           </div>
-          <h1 className="text-xl font-semibold text-ink-primary leading-tight">Sign in</h1>
+          <h1 className="text-xl font-semibold text-ink-primary leading-tight">
+            Sign in to HexoraIT
+            <span className="cursor-blink ml-0.5 text-blue-400">_</span>
+          </h1>
           <p className="text-sm text-ink-muted mt-1">Your IT documentation workspace</p>
         </div>
 

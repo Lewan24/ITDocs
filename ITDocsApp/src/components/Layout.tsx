@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Blocks, LayoutDashboard, Server, KeyRound, BookOpen,
+  LayoutDashboard, Server, KeyRound, BookOpen,
   Network, CreditCard, Settings, ChevronLeft, ChevronRight,
   Search, Bell, LogOut, ChevronDown, X, Plus, Check, Building2, Menu,
   Users, FileSignature, Lightbulb, AlertTriangle, CheckSquare,
@@ -12,6 +12,9 @@ import { useAuth } from '../context/useAuth'
 import type { Organization } from '../api/types'
 import { toggleTheme, getTheme } from '../lib/theme'
 import { buildSearchResults, type SearchResult } from '../lib/search'
+import logo from '../../public/logo/HexoraIT_LogoNoBg.png'
+import logoWhite from '../../public/logo/HexoraIT_LogoGray.png'
+import logoHex from '../../public/logo/HexoraIT_HexLogoNoBg.png'
 
 type NavSection = { label: string; items: { id: View; label: string; icon: React.ReactNode }[] }
 
@@ -156,10 +159,8 @@ function Sidebar({
     return (
       <div className="flex flex-col h-full bg-navy-900">
         <div className="h-14 flex items-center px-4 border-b border-edge-subtle flex-shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-            <Blocks size={14} className="text-white" />
-          </div>
-          {(!collapsed || isMobile) && <span className="ml-2.5 font-semibold text-ink-primary text-sm">DocsIT</span>}
+          <img src={logo} />
+          {/* {(!collapsed || isMobile) && <span className="ml-2.5 font-semibold text-ink-primary text-sm">HexoraIT</span>} */}
         </div>
       </div>
     )
@@ -167,20 +168,35 @@ function Sidebar({
 
   return (
     <div className="flex flex-col h-full bg-navy-900">
-      {/* Logo row */}
-      <div className={`h-14 flex items-center border-b border-edge-subtle flex-shrink-0 ${collapsed && !isMobile ? 'justify-center px-0' : 'px-4'}`}>
+      <div className={`mt-2 flex items-center border-b border-edge-subtle flex-shrink-0 ${collapsed && !isMobile ? 'justify-center px-0' : 'px-4'}`}>
         {isMobile && (
           <button onClick={onClose} className="mr-3 p-1 rounded-md text-ink-muted hover:text-ink-primary transition-colors">
             <X size={16} />
           </button>
         )}
-        <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0" style={{ boxShadow: '0 0 16px rgba(37,99,235,0.4)' }}>
-          <Blocks size={14} className="text-white" />
-        </div>
-        {(!collapsed || isMobile) && (
-          <span className="ml-2.5 font-semibold text-ink-primary text-sm tracking-tight whitespace-nowrap">DocsIT</span>
-        )}
       </div>
+
+      {(getTheme() === 'dark') && (
+        (!collapsed || isMobile) && (
+        <div className='mt-5 flex justify-center cursor-pointer hover:scale-[1.05] transition transition-all duration-300'>
+          <img src={logo} width='75%' onClick={() => handleNav('dashboard')} />
+        </div>
+        )
+      )}
+
+      {(getTheme() === 'light') && (
+        (!collapsed || isMobile) && (
+        <div className='mt-5 flex justify-center cursor-pointer hover:scale-[1.05] transition transition-all duration-300'>
+          <img src={logoWhite} width='75%' onClick={() => handleNav('dashboard')} />
+        </div>
+        )
+      )}
+
+      {(collapsed) && (
+        <div className='mt-5 flex justify-center cursor-pointer hover:scale-[1.05] transition transition-all duration-300'>
+          <img src={logoHex} width='65%' onClick={() => handleNav('dashboard')} />
+        </div>
+      )}
 
       {/* Org switcher */}
       {(!collapsed || isMobile) ? (
