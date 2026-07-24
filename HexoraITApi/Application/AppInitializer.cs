@@ -16,7 +16,7 @@ public sealed class AppInitializer(
     {
         await db.Database.MigrateAsync();
 
-        var adminEmail = appSettings.Value.ITDocsAdmin;
+        var adminEmail = appSettings.Value.HexoraITAdmin;
 
         if (string.IsNullOrWhiteSpace(adminEmail))
             return;

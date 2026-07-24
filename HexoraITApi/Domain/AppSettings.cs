@@ -2,7 +2,7 @@
 
 public sealed class AppSettings
 {
-    public string ITDocsAdmin { get; init; } = "";
+    public string HexoraITAdmin { get; init; } = "";
 
     public bool AllowRegister { get; init; }
 
