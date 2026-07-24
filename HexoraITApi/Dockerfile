@@ -6,17 +6,17 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["ITDocsApi.csproj", "./"]
-RUN dotnet restore "ITDocsApi.csproj"
+COPY ["HexoraITApi.csproj", "./"]
+RUN dotnet restore "HexoraITApi.csproj"
 COPY . .
 WORKDIR "/src/"
-RUN dotnet build "./ITDocsApi.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./HexoraITApi.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./ITDocsApi.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./HexoraITApi.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "ITDocsApi.dll"]
+ENTRYPOINT ["dotnet", "HexoraITApi.dll"]
